@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-03
+
 ### Added
 
 - `librepost import`: Postman collections (v2.0/v2.1) and environment/globals exports, HAR
@@ -46,5 +48,6 @@ First release. On PyPI the package is `librepost-app`, because PyPI doesn't allo
   that isn't gitignored.
 - `librepost init` to create an example workspace.
 
-[Unreleased]: https://github.com/ag3ntsc4rn/librepost/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ag3ntsc4rn/librepost/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ag3ntsc4rn/librepost/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ag3ntsc4rn/librepost/releases/tag/v0.1.0
