@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-11-03
 
+First release. On PyPI the package is `librepost-app`, because PyPI doesn't allow the name
+`librepost`; the command is `librepost` (`librepost-app` also works).
+
 ### Added
 
 - Local web UI (`librepost ui`): browse the `.http` files in a folder, edit requests, send

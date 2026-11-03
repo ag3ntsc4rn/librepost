@@ -1,5 +1,5 @@
 [project]
-name = "librepost"
+name = "librepost-app"
 version = "0.1.0"
 description = "A free, local-first API client. Requests live as plain .http files in your git repo; secrets stay in your keychain."
 readme = "README.md"
@@ -41,6 +41,8 @@ Changelog = "https://github.com/ag3ntsc4rn/librepost/blob/main/CHANGELOG.md"
 
 [project.scripts]
 librepost = "librepost.cli:app"
+# Same command under the PyPI name, so `uvx librepost-app ui` works.
+librepost-app = "librepost.cli:app"
 
 [dependency-groups]
 dev = [
@@ -53,6 +55,10 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.8,<0.14"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The PyPI name is librepost-app; the importable package is librepost.
+module-name = "librepost"
 
 [tool.ruff]
 line-length = 100
