@@ -155,6 +155,10 @@ librepost secret set dev-token      # prompts without echoing
 librepost secret delete dev-token
 ```
 
+In the UI, **Secrets** lists every reference in your workspace with its status and lets you
+set or replace values (never read them), and **Environments** edits both env files, with a 🔒
+box that moves a value into the keychain.
+
 Secret values are masked (`••••••`) in the request preview, response headers and response
 body (APIs often echo credentials back), and in error messages.
 

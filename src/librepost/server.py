@@ -34,7 +34,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from . import __version__, environments, importers, runner, secretstore
+from . import __version__, environments, importers, manage, runner, secretstore
 from .environments import EnvFileError
 from .httpfile import METHODS, HttpFileError, Request, format_headers, parse_headers, validate
 from .secretstore import SecretError
@@ -126,6 +126,8 @@ def create_app(
     transport: httpx.BaseTransport | None = None,
     secret_lookup: Callable[[str], str] = secretstore.lookup,
     secret_store: Callable[[str, str], None] = secretstore.store,
+    secret_exists: Callable[[str], bool] = secretstore.exists,
+    secret_delete: Callable[[str], None] = secretstore.delete,
 ) -> ASGIApp:
     workspace = Workspace(root)
     jinja = Environment(
@@ -321,6 +323,145 @@ def create_app(
             trigger="tree-changed",
         )
 
+    def environments_page(
+        env: str = "", status: str = "", error: str = "", **extra: Any
+    ) -> HTMLResponse:
+        try:
+            names = manage.env_names(workspace.root)
+            current = env if env in names else (names[1] if len(names) > 1 else names[0])
+            env_rows = manage.rows(workspace.root, current)
+        except manage.ManageError as exc:
+            return render("environments.html", names=[], error=str(exc))
+        refs = {row.secret_ref for row in env_rows if row.secret_ref}
+        secret_set = {ref: secret_exists(ref) for ref in refs}
+        return render(
+            "environments.html",
+            names=names,
+            current=current,
+            rows=env_rows,
+            secret_set=secret_set,
+            shared=environments.SHARED,
+            tracked=manage.private_file_tracked(workspace.root),
+            status=status,
+            error=error,
+            **extra,
+        )
+
+    def form_rows(form: FormData) -> list[manage.Row]:
+        indices = sorted(
+            {int(k.split("-")[1]) for k in form if k.startswith("rows-") and k.endswith("-key")}
+        )
+        result = []
+        for i in indices:
+            key = str(form.get(f"rows-{i}-key", "")).strip()
+            value = str(form.get(f"rows-{i}-value", ""))
+            if not key and not value:
+                continue
+            result.append(
+                manage.Row(
+                    key=key,
+                    value=value,
+                    location=str(form.get(f"rows-{i}-location", manage.SHARED_LOCATION)),
+                    secret=bool(form.get(f"rows-{i}-secret")),
+                )
+            )
+        return result
+
+    async def environments_view(request: HttpRequest) -> Response:
+        return environments_page(request.query_params.get("env", ""))
+
+    async def environments_save(request: HttpRequest) -> Response:
+        form = await request.form()
+        env = str(form.get("env", ""))
+        new_rows = form_rows(form)
+        try:
+            stored = await run_in_threadpool(
+                manage.save, workspace.root, env, new_rows, secret_store
+            )
+        except (manage.ManageError, SecretError, OSError) as exc:
+            # Re-show what was typed so nothing is lost; values stay in this local page only.
+            return environments_page(env, error=str(exc), draft=new_rows)
+        message = f"Saved {env}."
+        if stored:
+            message += f" Stored {len(stored)} value(s) in your keychain."
+        response = environments_page(env, status=message)
+        response.headers["HX-Trigger"] = "envs-changed"
+        return response
+
+    async def environments_create(request: HttpRequest) -> Response:
+        form = await request.form()
+        env = str(form.get("name", "")).strip()
+        try:
+            manage.create(workspace.root, env)
+        except (manage.ManageError, OSError) as exc:
+            return environments_page(error=str(exc))
+        response = environments_page(env, status=f"Created {env}.")
+        response.headers["HX-Trigger"] = "envs-changed"
+        return response
+
+    async def environments_delete(request: HttpRequest) -> Response:
+        form = await request.form()
+        env = str(form.get("env", ""))
+        try:
+            manage.delete(workspace.root, env)
+        except (manage.ManageError, OSError) as exc:
+            return environments_page(env, error=str(exc))
+        response = environments_page(status=f"Deleted {env}.")
+        response.headers["HX-Trigger"] = "envs-changed"
+        return response
+
+    async def environments_gitignore(request: HttpRequest) -> Response:
+        manage.ignore_private_file(workspace.root)
+        return environments_page(
+            request.query_params.get("env", ""), status="Added the private file to .gitignore."
+        )
+
+    async def env_options(request: HttpRequest) -> Response:
+        try:
+            names = environments.names(workspace.root)
+        except EnvFileError:
+            names = []
+        return render("env_options.html", env_names=names)
+
+    def secrets_page(status: str = "", error: str = "") -> HTMLResponse:
+        try:
+            refs = manage.secret_refs(workspace.root)
+        except OSError as exc:
+            refs, error = [], str(exc)
+        return render(
+            "secrets.html",
+            refs=refs,
+            present={r.ref: secret_exists(r.ref) for r in refs},
+            status=status,
+            error=error,
+        )
+
+    async def secrets_view(request: HttpRequest) -> Response:
+        return secrets_page()
+
+    async def secrets_set(request: HttpRequest) -> Response:
+        form = await request.form()
+        name = str(form.get("name", "")).strip()
+        value = str(form.get("value", ""))
+        if not value:
+            return secrets_page(error=f"Enter a value for {name}.")
+        try:
+            secretstore.check_key(name)
+            await run_in_threadpool(secret_store, name, value)
+        except SecretError as exc:
+            return secrets_page(error=str(exc))
+        return secrets_page(status=f"Stored {name} in your keychain.")
+
+    async def secrets_delete(request: HttpRequest) -> Response:
+        form = await request.form()
+        name = str(form.get("name", "")).strip()
+        try:
+            secretstore.check_key(name)
+            await run_in_threadpool(secret_delete, name)
+        except SecretError as exc:
+            return secrets_page(error=str(exc))
+        return secrets_page(status=f"Deleted {name} from your keychain.")
+
     static = Path(__file__).parent / "static"
     app = Starlette(
         routes=[
@@ -334,6 +475,15 @@ def create_app(
             Route("/send", send, methods=["POST"]),
             Route("/import", import_form),
             Route("/import", import_, methods=["POST"]),
+            Route("/environments", environments_view),
+            Route("/environments/save", environments_save, methods=["POST"]),
+            Route("/environments/create", environments_create, methods=["POST"]),
+            Route("/environments/delete", environments_delete, methods=["POST"]),
+            Route("/environments/gitignore", environments_gitignore, methods=["POST"]),
+            Route("/env-options", env_options),
+            Route("/secrets", secrets_view),
+            Route("/secrets/set", secrets_set, methods=["POST"]),
+            Route("/secrets/delete", secrets_delete, methods=["POST"]),
             Mount("/static", StaticFiles(directory=static), name="static"),
         ],
     )

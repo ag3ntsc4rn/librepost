@@ -55,14 +55,40 @@
     form.reset();
   });
 
+  // Environments page: add and remove rows; mask values that will go to the keychain.
+  let nextRow = 1000;
+  document.addEventListener("click", (event) => {
+    if (event.target.id === "add-row") {
+      const template = document.getElementById("env-row-template");
+      const html = template.innerHTML.replaceAll("__i__", String(nextRow++));
+      document.getElementById("env-rows").insertAdjacentHTML("beforeend", html);
+      document.querySelector("#env-rows tr:last-child input").focus();
+    } else if (event.target.classList.contains("remove-row")) {
+      event.target.closest("tr").remove();
+    }
+  });
+  document.addEventListener("change", (event) => {
+    if (!event.target.classList.contains("env-secret")) return;
+    const value = event.target.closest("tr").querySelector(".env-value");
+    if (value) value.type = event.target.checked ? "password" : "text";
+  });
+
   // Remember the chosen environment in this browser only.
-  document.addEventListener("DOMContentLoaded", () => {
+  function restoreEnv() {
     const select = document.getElementById("env");
     if (!select) return;
     try {
       const saved = localStorage.getItem(ENV_KEY);
       if (saved !== null && [...select.options].some((o) => o.value === saved)) select.value = saved;
     } catch (_) { /* storage unavailable */ }
+  }
+  document.addEventListener("htmx:afterSwap", (event) => {
+    if (event.target.id === "env") restoreEnv();
+  });
+  document.addEventListener("DOMContentLoaded", () => {
+    const select = document.getElementById("env");
+    if (!select) return;
+    restoreEnv();
     select.addEventListener("change", () => {
       try { localStorage.setItem(ENV_KEY, select.value); } catch (_) { /* storage unavailable */ }
     });

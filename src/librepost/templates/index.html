@@ -16,11 +16,8 @@
     <div class="workspace" title="{{ root }}">{{ root }}</div>
     <label class="env">
       <span>Environment</span>
-      <select id="env" name="env">
-        <option value="">(none)</option>
-        {% for name in env_names %}
-        <option value="{{ name }}">{{ name }}</option>
-        {% endfor %}
+      <select id="env" name="env" hx-get="/env-options" hx-trigger="envs-changed from:body" hx-swap="innerHTML">
+        {% include "env_options.html" %}
       </select>
     </label>
   </header>
@@ -35,6 +32,8 @@
       </form>
       <div class="sidebar-actions">
         <button type="button" class="ghost" hx-get="/import" hx-target="#main">Import…</button>
+        <button type="button" class="ghost" hx-get="/environments" hx-target="#main">Environments</button>
+        <button type="button" class="ghost" hx-get="/secrets" hx-target="#main">Secrets</button>
       </div>
       <nav id="tree" hx-get="/tree" hx-trigger="tree-changed from:body">
         {% include "tree.html" %}
