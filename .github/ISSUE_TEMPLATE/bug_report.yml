@@ -1,0 +1,37 @@
+name: Bug report
+description: Something isn't working as documented.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems (for example, a way for a website to reach the local UI): report them privately, see SECURITY.md.
+        Please remove tokens, passwords and internal hostnames from anything you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The command you ran or what you clicked, and a minimal .http file if relevant.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: librepost version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Python version, OS and browser
+      placeholder: "Python 3.13, macOS 26, Firefox 140"

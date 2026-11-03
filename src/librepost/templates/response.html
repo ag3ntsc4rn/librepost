@@ -1,0 +1,41 @@
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+{% if result %}
+<div class="response-meta">
+  <span class="status-code s{{ result.status // 100 }}xx">{{ result.status }} {{ result.reason }}</span>
+  <span>{{ "%.0f" | format(result.elapsed_ms) }} ms</span>
+  <span>{{ size }}</span>
+  <span class="muted">{{ result.http_version }}</span>
+  {% if result.redirects %}
+  <span class="muted">{{ result.redirects | length }} redirect(s) → {{ result.url }}</span>
+  {% endif %}
+</div>
+{% endif %}
+{% if result or sent %}
+<div class="tabs" data-tabs>
+  <div class="tab-list" role="tablist">
+    {% if result %}
+    <button type="button" role="tab" data-tab="r-body" aria-selected="true">Body</button>
+    <button type="button" role="tab" data-tab="r-headers" aria-selected="false">Headers ({{ headers | length }})</button>
+    {% endif %}
+    <button type="button" role="tab" data-tab="r-sent" aria-selected="{{ 'false' if result else 'true' }}">Request sent</button>
+  </div>
+  {% if result %}
+  <div class="tab-panel" data-panel="r-body">
+    <pre class="code">{{ body }}</pre>
+  </div>
+  <div class="tab-panel" data-panel="r-headers" hidden>
+    <table class="headers">
+      {% for key, value in headers %}
+      <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  <div class="tab-panel" data-panel="r-sent" {% if result %}hidden{% endif %}>
+    <pre class="code">{{ sent }}</pre>
+    <p class="muted small">Secret values are masked.</p>
+  </div>
+</div>
+{% endif %}

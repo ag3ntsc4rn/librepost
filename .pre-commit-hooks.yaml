@@ -1,0 +1,6 @@
+- id: librepost-check
+  name: librepost check
+  description: Find literal secrets in .http files and http-client env files.
+  entry: librepost check
+  language: python
+  files: (\.(http|rest)$|(^|/)http-client(\.private)?\.env\.json$)

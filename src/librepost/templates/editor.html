@@ -1,0 +1,38 @@
+<form id="editor" class="editor" autocomplete="off">
+  <input type="hidden" name="file" value="{{ file }}">
+  <input type="hidden" name="index" value="{{ index }}">
+  <div class="editor-head">
+    <input class="name-input" name="name" value="{{ request.name }}" placeholder="request name" aria-label="Request name">
+    <span class="file-path" title="{{ file }}">{{ file }}</span>
+    <div id="status" class="status-msg" role="status">{% if status %}{% include "status.html" %}{% endif %}</div>
+    <div class="actions">
+      <button type="button" class="ghost" hx-post="/requests" hx-target="#main" title="Add another request to this file">+ Request</button>
+      <button type="button" class="ghost danger" hx-post="/delete" hx-target="#main" hx-confirm="Delete this request from {{ file }}?">Delete</button>
+      <button type="button" id="save" hx-post="/save" hx-target="#status">Save</button>
+    </div>
+  </div>
+  <div class="request-line">
+    <select name="method" aria-label="Method">
+      {% for m in methods %}
+      <option value="{{ m }}" {% if m == request.method %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+    <input class="url" name="url" value="{{ request.url }}" placeholder="{{ '{{' }}baseUrl{{ '}}' }}/path" aria-label="URL" spellcheck="false">
+    <button type="button" id="send" class="primary" hx-post="/send" hx-target="#response" hx-include="#env" hx-indicator="#response">Send</button>
+  </div>
+  <div class="tabs" data-tabs>
+    <div class="tab-list" role="tablist">
+      <button type="button" role="tab" data-tab="headers" aria-selected="true">Headers</button>
+      <button type="button" role="tab" data-tab="body" aria-selected="false">Body</button>
+    </div>
+    <div class="tab-panel" data-panel="headers">
+      <textarea name="headers" rows="6" spellcheck="false" placeholder="Content-Type: application/json&#10;Authorization: Bearer {{ '{{' }}secret:keychain/my-token{{ '}}' }}">{{ headers }}</textarea>
+    </div>
+    <div class="tab-panel" data-panel="body" hidden>
+      <textarea name="body" rows="12" spellcheck="false" placeholder='{"hello": "world"}'>{{ request.body }}</textarea>
+    </div>
+  </div>
+</form>
+<section id="response" class="response" aria-live="polite">
+  <p class="muted">Press <strong>Send</strong> to see the response. Unsaved changes are sent as they are.</p>
+</section>

@@ -1,0 +1,30 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-11-03
+
+### Added
+
+- Local web UI (`librepost ui`): browse the `.http` files in a folder, edit requests, send
+  them, and read the response body, headers and the request as sent. Served on 127.0.0.1
+  only, behind a per-session token, Host and Origin checks, and a strict CSP.
+- `.http` file support compatible with the JetBrains HTTP Client and VS Code REST Client:
+  `###` separators, `# @name`, file variables, multi-line query strings. Response handler
+  scripts are kept on save but not run.
+- Environments in `http-client.env.json` and the gitignored `http-client.private.env.json`,
+  including `$shared` values.
+- Secret references, `{{secret:keychain/<name>}}` and `{{secret:env/<NAME>}}`, resolved only
+  when a request is sent and masked everywhere on screen. `librepost secret set/delete`.
+- `librepost run` to send a request from the terminal, with `--env`, `--name`, `--fail`.
+- `librepost check` and a pre-commit hook that flag literal credentials and a private env file
+  that isn't gitignored.
+- `librepost init` to create an example workspace.
+
+[Unreleased]: https://github.com/ag3ntsc4rn/librepost/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ag3ntsc4rn/librepost/releases/tag/v0.1.0

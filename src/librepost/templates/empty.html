@@ -1,0 +1,6 @@
+<div class="empty">
+  {% if message %}<p class="ok">{{ message }}</p>{% endif %}
+  <h2>Pick a request on the left, or create a new file.</h2>
+  <p class="muted">Requests are saved as plain <code>.http</code> files in this folder, so you can commit, review and share them with git.
+    Secrets stay out of the files: write <code>{{ '{{' }}secret:keychain/name{{ '}}' }}</code> and add the value with <code>librepost secret set name</code>.</p>
+</div>

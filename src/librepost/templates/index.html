@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>librepost</title>
+  <meta name="htmx-config" content='{"allowEval": false, "allowScriptTags": false, "includeIndicatorStyles": false, "selfRequestsOnly": true, "historyEnabled": false, "historyCacheSize": 0}'>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx-2.0.11.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="/static/icon.svg" alt="" width="20" height="20"> librepost</div>
+    <div class="workspace" title="{{ root }}">{{ root }}</div>
+    <label class="env">
+      <span>Environment</span>
+      <select id="env" name="env">
+        <option value="">(none)</option>
+        {% for name in env_names %}
+        <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </header>
+  {% if env_error %}
+  <div class="banner error">{{ env_error }}</div>
+  {% endif %}
+  <div class="layout">
+    <aside class="sidebar">
+      <form class="new-file" hx-post="/files" hx-target="#main">
+        <input name="path" placeholder="new file, e.g. users/list.http" required aria-label="New file path">
+        <button type="submit" title="Create file">New</button>
+      </form>
+      <nav id="tree" hx-get="/tree" hx-trigger="tree-changed from:body">
+        {% include "tree.html" %}
+      </nav>
+    </aside>
+    <main id="main">
+      {% include "empty.html" %}
+    </main>
+  </div>
+  <footer class="footer">
+    librepost {{ version }} · local only · no telemetry ·
+    <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> send · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> save
+  </footer>
+</body>
+</html>
