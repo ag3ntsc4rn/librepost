@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Secrets added in the UI or with `librepost secret set` now appear on the Secrets screen even
+  when nothing refers to them yet, under "Not used in this workspace". OS keychains can't list
+  their entries, so librepost keeps an index of the names it stored (never the values) in one
+  extra keychain entry. Secrets stored with 0.3.0 or earlier show up once they're referenced
+  or set again.
+
+### Added
+
+- `librepost secret list` prints the names of stored secrets.
+
 ## [0.3.0] - 2026-11-03
 
 ### Added

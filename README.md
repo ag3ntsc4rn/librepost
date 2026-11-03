@@ -152,6 +152,7 @@ Same format as the JetBrains HTTP Client:
 
 ```bash
 librepost secret set dev-token      # prompts without echoing
+librepost secret list               # names only, never values
 librepost secret delete dev-token
 ```
 

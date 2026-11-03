@@ -88,3 +88,38 @@ def test_environments_bad_json(tmp_path: Path) -> None:
     (tmp_path / environments.PUBLIC_FILE).write_text("{nope")
     with pytest.raises(EnvFileError, match="Can't read"):
         environments.load(tmp_path)
+
+
+def test_keychain_index(monkeypatch: pytest.MonkeyPatch) -> None:
+    import keyring
+    import keyring.errors
+
+    store: dict[tuple[str, str], str] = {}
+
+    def delete_password(service: str, key: str) -> None:
+        if (service, key) not in store:
+            raise keyring.errors.PasswordDeleteError(key)
+        del store[(service, key)]
+
+    monkeypatch.setattr(keyring, "get_password", lambda s, k: store.get((s, k)))
+    monkeypatch.setattr(keyring, "set_password", lambda s, k, v: store.__setitem__((s, k), v))
+    monkeypatch.setattr(keyring, "delete_password", delete_password)
+
+    assert secretstore.names() == []
+    secretstore.store("b", "1")
+    secretstore.store("a", "2")
+    secretstore.store("a", "3")
+    assert secretstore.names() == ["a", "b"]
+    assert "3" not in store[("librepost", secretstore.INDEX)]  # names only, never values
+    secretstore.delete("a")
+    assert secretstore.names() == ["b"]
+    # Deleting something already gone still cleans up the index.
+    store[("librepost", secretstore.INDEX)] = '["b", "ghost"]'
+    with pytest.raises(SecretError):
+        secretstore.delete("ghost")
+    assert secretstore.names() == ["b"]
+    # A corrupt index is ignored, and the user can't address it as a secret.
+    store[("librepost", secretstore.INDEX)] = "not json"
+    assert secretstore.names() == []
+    with pytest.raises(SecretError):
+        secretstore.lookup("keychain/" + secretstore.INDEX)

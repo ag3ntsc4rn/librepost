@@ -403,6 +403,16 @@ def secret_set(name: Annotated[str, typer.Argument(help="Secret name.")]) -> Non
     out.print(f"[green]Stored[/] {name}. Use it as {{{{secret:keychain/{name}}}}}")
 
 
+@secret_app.command("list")
+def secret_list() -> None:
+    """List the names of secrets librepost has stored in the keychain (never the values)."""
+    names = secretstore.names()
+    for name in names:
+        out.print(f"{name}  [dim]{{{{secret:keychain/{name}}}}}[/]")
+    if not names:
+        out.print("[dim]No secrets stored by librepost yet.[/]")
+
+
 @secret_app.command("delete")
 def secret_delete(name: Annotated[str, typer.Argument(help="Secret name.")]) -> None:
     """Remove a secret from the OS keychain."""

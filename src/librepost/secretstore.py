@@ -11,11 +11,16 @@ Providers:
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import re
 
 SERVICE = "librepost"
 PROVIDERS = ("keychain", "env")
+# OS keychains can't list their entries, so librepost keeps the names it stored (never the
+# values) in one extra entry. The ':' keeps it apart from user names, which can't contain one.
+INDEX = "librepost:index"
 
 _KEY = re.compile(r"[A-Za-z0-9_.-]+")
 
@@ -60,11 +65,38 @@ def exists(ref: str) -> bool:
 def store(key: str, value: str) -> None:
     check_key(key)
     _keyring_call("set_password", key, value)
+    _update_index(add=key)
 
 
 def delete(key: str) -> None:
     check_key(key)
-    _keyring_call("delete_password", key)
+    try:
+        _keyring_call("delete_password", key)
+    finally:
+        _update_index(remove=key)
+
+
+def names() -> list[str]:
+    """Names of the keychain secrets librepost has stored (since it started keeping an index)."""
+    try:
+        raw = _keyring_call("get_password", INDEX)
+    except SecretError:
+        return []
+    try:
+        data = json.loads(str(raw)) if raw else []
+    except json.JSONDecodeError:
+        return []
+    return sorted({n for n in data if isinstance(n, str) and _KEY.fullmatch(n)})
+
+
+def _update_index(*, add: str = "", remove: str = "") -> None:
+    current = set(names())
+    updated = (current | {add}) - {remove, ""}
+    if updated == current:
+        return
+    # The index is a convenience: failing to update it must not fail the store or delete.
+    with contextlib.suppress(SecretError):
+        _keyring_call("set_password", INDEX, json.dumps(sorted(updated)))
 
 
 def _keyring_call(name: str, *args: str) -> object:

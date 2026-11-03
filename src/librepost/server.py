@@ -128,6 +128,7 @@ def create_app(
     secret_store: Callable[[str, str], None] = secretstore.store,
     secret_exists: Callable[[str], bool] = secretstore.exists,
     secret_delete: Callable[[str], None] = secretstore.delete,
+    secret_names: Callable[[], list[str]] = secretstore.names,
 ) -> ASGIApp:
     workspace = Workspace(root)
     jinja = Environment(
@@ -428,10 +429,13 @@ def create_app(
             refs = manage.secret_refs(workspace.root)
         except OSError as exc:
             refs, error = [], str(exc)
+        referenced = {r.key for r in refs if r.provider == "keychain"}
+        unused = [n for n in secret_names() if n not in referenced]
         return render(
             "secrets.html",
             refs=refs,
             present={r.ref: secret_exists(r.ref) for r in refs},
+            unused=unused,
             status=status,
             error=error,
         )
@@ -450,7 +454,9 @@ def create_app(
             await run_in_threadpool(secret_store, name, value)
         except SecretError as exc:
             return secrets_page(error=str(exc))
-        return secrets_page(status=f"Stored {name} in your keychain.")
+        return secrets_page(
+            status=f"Stored {name} in your keychain. Use it as {{{{secret:keychain/{name}}}}}."
+        )
 
     async def secrets_delete(request: HttpRequest) -> Response:
         form = await request.form()
