@@ -17,12 +17,20 @@
     <div class="tab-list" role="tablist">
       <button type="button" role="tab" data-tab="headers" aria-selected="true">Headers</button>
       <button type="button" role="tab" data-tab="body" aria-selected="false">Body</button>
+      <button type="button" role="tab" data-tab="checks" aria-selected="false">Checks{% if request.checks %} ({{ request.checks | length }}){% endif %}</button>
     </div>
     <div class="tab-panel" data-panel="headers">
       <textarea name="headers" rows="6" spellcheck="false" placeholder="Content-Type: application/json&#10;Authorization: Bearer {{ '{{' }}secret:keychain/my-token{{ '}}' }}">{{ headers }}</textarea>
     </div>
     <div class="tab-panel" data-panel="body" hidden>
       <textarea name="body" rows="12" spellcheck="false" placeholder='{"hello": "world"}'>{{ request.body }}</textarea>
+    </div>
+    <div class="tab-panel" data-panel="checks" hidden>
+      <textarea name="checks" rows="6" spellcheck="false" placeholder="@expect status == 200&#10;@expect $.items.length > 0&#10;@capture userId = $.id&#10;@capture-secret token = $.access_token">{{ request.checks | join("\n") }}</textarea>
+      <p class="muted small">Test the response and keep values for later requests, without scripts.
+        <code>@capture name = …</code> keeps a value as <code>{{ '{{' }}name{{ '}}' }}</code>; <code>@capture-secret</code> also masks it.
+        Read from <code>status</code>, <code>duration</code>, <code>body</code>, <code>header Name</code>, <code>$.json.path</code> or <code>regex "pattern"</code>.
+        Compare with <code>== != &lt; &lt;= &gt; &gt;= contains !contains matches exists !exists</code>.</p>
     </div>
   </div>
 </form>

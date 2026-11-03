@@ -63,3 +63,21 @@ def test_run_unknown_name(tmp_path: Path) -> None:
     result = cli.invoke(app, ["run", str(tmp_path / "a.http"), "-n", "two"])
     assert result.exit_code == 2
     assert "Names in this file: one" in result.output
+
+
+def test_run_reports_checks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "a.http").write_text(
+        "# @expect status == 200\n# @expect $.ok == true\nGET https://api.example.invalid\n"
+    )
+    original = runner.send
+    monkeypatch.setattr(
+        "librepost.cli.runner.send",
+        lambda p, **kw: original(
+            p,
+            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"ok": False})),
+            **kw,
+        ),
+    )
+    result = cli.invoke(app, ["run", str(tmp_path / "a.http")])
+    assert result.exit_code == 1
+    assert "✓ status == 200" in result.output and "✗ $.ok == true" in result.output

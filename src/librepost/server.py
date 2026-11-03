@@ -34,7 +34,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from . import __version__, environments, importers, manage, runner, secretstore
+from . import __version__, checks, environments, importers, manage, runner, secretstore
 from .environments import EnvFileError
 from .httpfile import METHODS, HttpFileError, Request, format_headers, parse_headers, validate
 from .secretstore import SecretError
@@ -131,6 +131,9 @@ def create_app(
     secret_names: Callable[[], list[str]] = secretstore.names,
 ) -> ASGIApp:
     workspace = Workspace(root)
+    # Values captured from responses, used by later requests until the server stops.
+    captured: dict[str, str] = {}
+    captured_secret: set[str] = set()
     jinja = Environment(
         loader=PackageLoader("librepost", "templates"),
         autoescape=select_autoescape(default=True, default_for_string=True),
@@ -167,8 +170,17 @@ def create_app(
             headers=parse_headers(str(form.get("headers", ""))),
             body=str(form.get("body", "")).replace("\r\n", "\n").strip("\n"),
             name=str(form.get("name", "")).strip(),
+            checks=[
+                checks.normalise(line)
+                for line in str(form.get("checks", "")).splitlines()
+                if line.strip()
+            ],
         )
         validate(request)
+        try:
+            checks.parse(request.checks)
+        except checks.CheckError as exc:
+            raise HttpFileError(str(exc)) from None
         return request
 
     def form_index(form: FormData) -> int:
@@ -280,7 +292,9 @@ def create_app(
             variables.update(
                 environments.variables(workspace.root, str(form.get("env", "")) or None)
             )
-            prepared = runner.prepare(req, variables, secret_lookup)
+            variables.update(captured)
+            secret_values = {captured[n] for n in captured_secret if n in captured}
+            prepared = runner.prepare(req, variables, secret_lookup, mask=secret_values)
         except (HttpFileError, WorkspaceError, EnvFileError, TemplateError, SecretError) as exc:
             return render("response.html", error=str(exc))
         try:
@@ -291,15 +305,33 @@ def create_app(
                 error=prepared.renderer.mask(f"{type(exc).__name__}: {exc}"),
                 sent=prepared.masked(),
             )
+        outcome = checks.run(checks.parse(req.checks), result)
+        for name, val in outcome.values.items():
+            captured[name] = val
+            if name in outcome.secret:
+                captured_secret.add(name)
+            else:
+                captured_secret.discard(name)
+        mask = prepared.renderer
+        mask.secret_values.update(captured[n] for n in captured_secret if captured.get(n))
         return render(
             "response.html",
             result=result,
             # Responses often echo credentials back (e.g. /headers endpoints).
-            body=prepared.renderer.mask(_display_body(result)),
+            body=mask.mask(_display_body(result)),
             size=_human_size(len(result.body)),
             sent=prepared.masked(),
-            headers=[(k, prepared.renderer.mask(v)) for k, v in result.headers],
+            headers=[(k, mask.mask(v)) for k, v in result.headers],
+            outcome=outcome,
+            results=[(r.text, r.passed, mask.mask(r.actual)) for r in outcome.results],
+            captured=_captured_view(captured, captured_secret),
+            new_captures=sorted(outcome.values),
         )
+
+    async def clear_captured(request: HttpRequest) -> Response:
+        captured.clear()
+        captured_secret.clear()
+        return HTMLResponse('<p class="muted small">Captured values cleared.</p>')
 
     async def import_form(request: HttpRequest) -> Response:
         return render("import.html")
@@ -504,6 +536,7 @@ def create_app(
             Route("/save-as", save_as, methods=["POST"]),
             Route("/delete", delete, methods=["POST"]),
             Route("/send", send, methods=["POST"]),
+            Route("/captured/clear", clear_captured, methods=["POST"]),
             Route("/import", import_form),
             Route("/import", import_, methods=["POST"]),
             Route("/environments", environments_view),
@@ -519,6 +552,18 @@ def create_app(
         ],
     )
     return Guard(app, port=port, token=token)
+
+
+def _captured_view(values: dict[str, str], secret: set[str]) -> list[tuple[str, str]]:
+    shown = []
+    for name in sorted(values):
+        val = values[name]
+        if name in secret:
+            val = "••••••"
+        elif len(val) > 80:
+            val = val[:77] + "…"
+        shown.append((name, val))
+    return shown
 
 
 def _display_body(result: runner.Result) -> str:

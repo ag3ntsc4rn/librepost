@@ -34,6 +34,8 @@ _REQUEST_LINE = re.compile(
 )
 _COMMENT = re.compile(r"^\s*(#|//)")
 _NAME = re.compile(r"^\s*(?:#|//)\s*@name\s*[= ]\s*(?P<name>\S.*?)\s*$")
+# `# @capture`, `# @capture-secret` and `# @expect` lines: see checks.py.
+_CHECK = re.compile(r"^\s*(?:#|//)\s*(?P<check>@(?:capture-secret|capture|expect)\b.*?)\s*$")
 _FILE_VARIABLE = re.compile(r"^@(?P<name>[A-Za-z_][\w.-]*)\s*=\s*(?P<value>.*?)\s*$")
 _URL_CONTINUATION = re.compile(r"^\s+[?&]")
 # Lines that end the body: response handlers and output redirects.
@@ -53,6 +55,8 @@ class Request:
     name: str = ""
     # Comment lines above the request line (other than `@name`), kept verbatim.
     comments: list[str] = field(default_factory=list)
+    # `@capture` / `@capture-secret` / `@expect` lines, without the comment marker.
+    checks: list[str] = field(default_factory=list)
     # Response handlers and redirects after the body, kept verbatim but never run.
     trailer: str = ""
 
@@ -100,8 +104,11 @@ def _parse_block(lines: list[str], variables: dict[str, str]) -> Request | None:
             i += 1
             continue
         name = _NAME.match(line)
+        check = _CHECK.match(line)
         if name:
             request.name = name.group("name")
+        elif check:
+            request.checks.append(check.group("check"))
         elif _COMMENT.match(line):
             request.comments.append(line.rstrip())
         else:
@@ -173,6 +180,7 @@ def dumps(httpfile: HttpFile) -> str:
     for request in httpfile.requests:
         validate(request)
         lines = list(request.comments)
+        lines.extend(f"# {check}" for check in request.checks)
         if request.name:
             lines.append(f"# @name {request.name}")
         lines.append(f"{request.method} {request.url}")

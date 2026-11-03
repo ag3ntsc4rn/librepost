@@ -58,9 +58,13 @@ def prepare(
     request: Request,
     variables: dict[str, str],
     secret_lookup: Callable[[str], str] = secretstore.lookup,
+    mask: set[str] | None = None,
 ) -> Prepared:
-    """Fill in placeholders. Raises TemplateError or SecretError."""
+    """Fill in placeholders. Raises TemplateError or SecretError.
+
+    `mask` holds extra values to hide on screen, such as secret captured values."""
     renderer = Renderer(variables, secret_lookup)
+    renderer.secret_values.update(v for v in mask or () if v)
     url = renderer.render(request.url)
     headers = [(renderer.render(k), renderer.render(v)) for k, v in request.headers]
     body = renderer.render(request.body)

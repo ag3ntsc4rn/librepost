@@ -13,12 +13,12 @@ import httpx
 import typer
 from rich.console import Console
 
-from . import __version__, environments, leakcheck, runner, secretstore
+from . import __version__, checks, environments, leakcheck, runner, secretstore
 from .environments import EnvFileError
 from .httpfile import HttpFileError, parse
 from .importers.sanitize import Secret
 from .secretstore import SecretError
-from .template import TemplateError
+from .template import Renderer, TemplateError
 
 app = typer.Typer(
     help="A free, local-first API client. Requests are .http files; secrets stay in your keychain.",
@@ -139,10 +139,11 @@ def run(
 
     root = _workspace_root(file)
     try:
+        plan = checks.parse(request.checks)
         variables = dict(httpfile.variables)
         variables.update(environments.variables(root, env))
         prepared = runner.prepare(request, variables)
-    except (EnvFileError, TemplateError, SecretError, HttpFileError) as exc:
+    except (EnvFileError, TemplateError, SecretError, HttpFileError, checks.CheckError) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from None
 
@@ -169,8 +170,26 @@ def run(
     if result.body and not result.body.endswith(b"\n") and sys.stdout.isatty():
         sys.stdout.write("\n")
     sys.stdout.flush()
+
+    outcome = checks.run(plan, result)
+    _print_outcome(outcome, prepared.renderer)
+    if outcome.failed:
+        raise typer.Exit(1)
     if fail and result.status >= 400:
         raise typer.Exit(22)
+
+
+def _print_outcome(outcome: checks.Outcome, renderer: Renderer) -> None:
+    renderer.secret_values.update(outcome.values[n] for n in outcome.secret if outcome.values[n])
+    for check in outcome.results:
+        if check.passed:
+            err.print(f"[green]✓[/] {check.text.removeprefix('@expect ')}")
+        else:
+            err.print(
+                f"[red]✗ {check.text.removeprefix('@expect ')}[/] [dim]got {renderer.mask(check.actual)}[/]"
+            )
+    for name in outcome.missing:
+        err.print(f"[yellow]![/] nothing found to capture for {name}")
 
 
 def _workspace_root(file: Path) -> Path:
