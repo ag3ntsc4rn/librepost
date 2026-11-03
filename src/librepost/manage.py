@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .environments import PRIVATE_FILE, PUBLIC_FILE, SHARED
+from .connection import PROXY_KEY, SSL_KEY
+from .environments import PRIVATE_FILE, PUBLIC_FILE, RESERVED, SHARED
 from .importers.sanitize import slug
 from .leakcheck import SENSITIVE_NAME, TOKEN_PATTERNS, git_ignored, literal_credential
 from .workspace import Workspace
@@ -103,8 +104,16 @@ def rows(root: Path, env: str) -> list[Row]:
         values = _read(root / filename).get(env, {})
         if isinstance(values, dict):
             for key, value in values.items():
-                result.append(Row(str(key), _text(value), location))
+                if key not in RESERVED:  # connection settings have their own form
+                    result.append(Row(str(key), _text(value), location))
     return result
+
+
+def _keep_reserved(old: Any, new: dict[str, Any]) -> dict[str, Any]:
+    """Carry an environment's connection settings over when its variables are replaced."""
+    if isinstance(old, dict):
+        new.update({k: v for k, v in old.items() if k in RESERVED})
+    return new
 
 
 def looks_like_credential(key: str, value: str) -> bool:
@@ -158,6 +167,7 @@ def save(root: Path, env: str, new_rows: list[Row], store: Callable[[str, str], 
     private = {r.key: r.value for r in new_rows if r.location == PRIVATE_LOCATION}
 
     public_data = _read(root / PUBLIC_FILE)
+    shared = _keep_reserved(public_data.get(env), shared)
     if shared or env != SHARED:
         public_data[env] = shared  # an empty object keeps the environment listed
     else:
@@ -166,6 +176,7 @@ def save(root: Path, env: str, new_rows: list[Row], store: Callable[[str, str], 
 
     private_path = root / PRIVATE_FILE
     private_data = _read(private_path)
+    private = _keep_reserved(private_data.get(env), private)
     if private:
         private_data[env] = private
     elif env in private_data:
@@ -174,6 +185,88 @@ def save(root: Path, env: str, new_rows: list[Row], store: Callable[[str, str], 
         return stored
     _write(private_path, private_data, private=True)
     return stored
+
+
+@dataclass
+class ConnectionForm:
+    client_cert: str = ""
+    client_key: str = ""
+    passphrase_ref: str = ""  # an existing {{secret:...}} reference, if any
+    has_literal_passphrase: bool = False
+    ca: str = ""
+    verify: bool = True
+    proxy: str = ""
+
+
+def connection_form(root: Path, env: str) -> ConnectionForm:
+    values = _read(root / PRIVATE_FILE).get(env, {})
+    values = values if isinstance(values, dict) else {}
+    tls = values.get(SSL_KEY, {}) if isinstance(values.get(SSL_KEY), dict) else {}
+    proxy = values.get(PROXY_KEY, {}) if isinstance(values.get(PROXY_KEY), dict) else {}
+
+    def path(value: Any) -> str:
+        return str(value.get("path", "") if isinstance(value, dict) else value or "")
+
+    passphrase = str(tls.get("certificatePassphrase") or "")
+    match = SECRET_REF.fullmatch(passphrase.strip())
+    return ConnectionForm(
+        client_cert=path(tls.get("clientCertificate")),
+        client_key=path(tls.get("clientCertificateKey")),
+        passphrase_ref=f"{match.group(1)}/{match.group(2)}" if match else "",
+        has_literal_passphrase=bool(passphrase) and not match,
+        ca=path(tls.get("caCertificate")),
+        verify=tls.get("verifyHostCertificate", True) is not False,
+        proxy=str(proxy.get("url") or ""),
+    )
+
+
+def save_connection(
+    root: Path,
+    env: str,
+    form: ConnectionForm,
+    new_passphrase: str,
+    clear_passphrase: bool,
+    store: Callable[[str, str], None],
+) -> None:
+    """Write the environment's connection settings to the private file only."""
+    check_env_name(env)
+    if form.client_key and not form.client_cert:
+        raise ManageError("A client key needs a client certificate too.")
+    if form.proxy and not form.proxy.startswith(("http://", "https://", "socks5://")):
+        raise ManageError("The proxy URL must start with http://, https:// or socks5://.")
+    private_path = root / PRIVATE_FILE
+    data = _read(private_path)
+    current = data.get(env)
+    values: dict[str, Any] = current if isinstance(current, dict) else {}
+    tls_value = values.get(SSL_KEY)
+    old_tls: dict[str, Any] = tls_value if isinstance(tls_value, dict) else {}
+
+    tls: dict[str, Any] = {}
+    if form.client_cert:
+        tls["clientCertificate"] = form.client_cert
+    if form.client_key:
+        tls["clientCertificateKey"] = form.client_key
+    if new_passphrase:
+        name = f"{slug(env if env != SHARED else 'shared')}-cert-passphrase"
+        store(name, new_passphrase)
+        tls["certificatePassphrase"] = f"{{{{secret:keychain/{name}}}}}"
+    elif old_tls.get("certificatePassphrase") and not clear_passphrase:
+        tls["certificatePassphrase"] = old_tls["certificatePassphrase"]
+    if form.ca:
+        tls["caCertificate"] = form.ca
+    if not form.verify:
+        tls["verifyHostCertificate"] = False
+
+    values = {k: v for k, v in values.items() if k not in RESERVED}
+    if tls:
+        values[SSL_KEY] = tls
+    if form.proxy:
+        values[PROXY_KEY] = {"url": form.proxy}
+    if values:
+        data[env] = values
+    else:
+        data.pop(env, None)
+    _write(private_path, data, private=True)
 
 
 def create(root: Path, env: str) -> None:

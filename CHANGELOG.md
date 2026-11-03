@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Client certificates (mTLS), extra CA certificates, host verification and proxies**, per
+  environment, in the JetBrains HTTP Client `SSLConfiguration` format plus
+  `certificatePassphrase`, `caCertificate` and `ProxyConfiguration`. Used by the UI,
+  `librepost run` and `librepost test`. Proxy passwords and key passphrases can be secret
+  references and are masked.
+- These settings are read only from `http-client.private.env.json`; in the shared file they're
+  ignored with a warning, so a cloned repository can't redirect your traffic or weaken TLS.
+- A **Connection** form on the Environments screen. Saving checks that the files load, and a
+  new key passphrase goes into the keychain.
+- HTTPS responses show the TLS version and the server certificate's subject and issuer, or
+  warn when it wasn't verified; `librepost run -v` also prints the cipher and expiry.
+
 ## [0.5.0] - 2026-11-03
 
 ### Added

@@ -61,6 +61,10 @@ def names(root: Path) -> list[str]:
     return sorted(env for env in load(root) if env != SHARED)
 
 
+# Connection settings (see connection.py), not variables.
+RESERVED = ("SSLConfiguration", "ProxyConfiguration")
+
+
 def variables(root: Path, env: str | None) -> dict[str, str]:
     envs = load(root)
     result = dict(envs.get(SHARED, {}))
@@ -68,4 +72,6 @@ def variables(root: Path, env: str | None) -> dict[str, str]:
         if env not in envs:
             raise EnvFileError(f"Unknown environment {env!r}.")
         result.update(envs[env])
+    for key in RESERVED:
+        result.pop(key, None)
     return result
