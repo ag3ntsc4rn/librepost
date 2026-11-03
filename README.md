@@ -1,8 +1,8 @@
 # librepost
 
 [![CI](https://github.com/ag3ntsc4rn/librepost/actions/workflows/ci.yml/badge.svg)](https://github.com/ag3ntsc4rn/librepost/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/librepost?cacheSeconds=3600)](https://pypi.org/project/librepost/)
-[![Python](https://img.shields.io/pypi/pyversions/librepost?cacheSeconds=3600)](https://pypi.org/project/librepost/)
+[![PyPI](https://img.shields.io/pypi/v/librepost-app?cacheSeconds=3600)](https://pypi.org/project/librepost-app/)
+[![Python](https://img.shields.io/pypi/pyversions/librepost-app?cacheSeconds=3600)](https://pypi.org/project/librepost-app/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ag3ntsc4rn/librepost/blob/main/LICENSE)
 
 **A free, local-first API client.** Your requests are plain `.http` files in your git repo.
@@ -10,10 +10,11 @@ Your secrets stay in your OS keychain. No account, no cloud, no telemetry, and n
 installed anywhere except the package itself.
 
 ```bash
-uvx librepost ui          # or: pipx install librepost && librepost ui
+uvx librepost-app ui      # or: uv tool install librepost-app && librepost ui
 ```
 
-That opens a Postman-style UI in your browser, served from your own machine.
+That opens a Postman-style UI in your browser, served from your own machine. (On PyPI the
+package is `librepost-app`; once installed, the command is `librepost`.)
 
 ## Why
 
@@ -143,7 +144,7 @@ Python 3.11+ (`uvx` will fetch one for you) and a web browser. Git is optional.
 ## Roadmap
 
 - Import from Postman collections, curl commands and HAR files
-- A native window (`pip install librepost[desktop]`)
+- A native window (`pip install librepost-app[desktop]`)
 - Git status and commit from the UI
 - Client certificates (mTLS), proxy settings, request history and response diffs
 - More secret providers: 1Password CLI, HashiCorp Vault, `pass`
