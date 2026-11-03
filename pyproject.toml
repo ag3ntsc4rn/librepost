@@ -1,6 +1,6 @@
 [project]
 name = "librepost-app"
-version = "0.3.1"
+version = "0.4.0"
 description = "A free, local-first API client. Requests live as plain .http files in your git repo; secrets stay in your keychain."
 readme = "README.md"
 license = "MIT"

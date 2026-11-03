@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
 ### Added
 
 - **New request** button: a blank editor you can send straight away, without picking a file
@@ -81,7 +83,8 @@ First release. On PyPI the package is `librepost-app`, because PyPI doesn't allo
   that isn't gitignored.
 - `librepost init` to create an example workspace.
 
-[Unreleased]: https://github.com/ag3ntsc4rn/librepost/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ag3ntsc4rn/librepost/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ag3ntsc4rn/librepost/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/ag3ntsc4rn/librepost/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ag3ntsc4rn/librepost/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ag3ntsc4rn/librepost/compare/v0.1.0...v0.2.0

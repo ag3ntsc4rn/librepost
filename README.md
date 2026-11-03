@@ -177,7 +177,7 @@ As a [pre-commit](https://pre-commit.com) hook:
 
 ```yaml
 - repo: https://github.com/ag3ntsc4rn/librepost
-  rev: v0.3.1
+  rev: v0.4.0
   hooks:
     - id: librepost-check
 ```
