@@ -55,14 +55,23 @@ def _templated(value: str) -> bool:
     return "{{" in value
 
 
-def _literal_credential(value: str) -> bool:
+def literal_credential(value: str) -> bool:
     value = value.strip()
     if _templated(value):
         return False
     # "Bearer abc" -> "abc"; "Basic" alone is a placeholder.
     parts = value.split(None, 1)
     if len(parts) == 2 and parts[0].lower() in ("bearer", "basic", "token", "digest", "apikey"):
-        value = parts[1]
+        value = parts[1].strip()
+        if parts[0].lower() == "basic" and " " in value:
+            # JetBrains form "Basic user password": the password is what matters.
+            value = value.split(None, 1)[1]
+            if _templated(value):
+                return False
+    # Prose such as "Your consumer secret" is a placeholder; real tokens have no spaces.
+    # Cookie headers ("a=1; b=2") do, so only words without = or ; count as prose.
+    if " " in value and not re.search(r"[=;]", value):
+        return False
     return not PLACEHOLDER_VALUE.match(value) and len(value) >= 8
 
 
@@ -78,7 +87,7 @@ def _scan_text(rel: str, text: str, is_http: bool) -> list[Leak]:
         if reported or not is_http:
             continue
         key, sep, value = line.partition(":")
-        if sep and SENSITIVE_HEADER.match(key.strip()) and _literal_credential(value):
+        if sep and SENSITIVE_HEADER.match(key.strip()) and literal_credential(value):
             leaks.append(
                 Leak(
                     rel,
@@ -105,7 +114,7 @@ def _scan_env(rel: str, text: str) -> list[Leak]:
         if not isinstance(values, dict):
             continue
         for key, value in values.items():
-            if isinstance(value, str) and SENSITIVE_NAME.search(key) and _literal_credential(value):
+            if isinstance(value, str) and SENSITIVE_NAME.search(key) and literal_credential(value):
                 number = next((i for i, line in enumerate(lines, start=1) if f'"{key}"' in line), 1)
                 leaks.append(
                     Leak(

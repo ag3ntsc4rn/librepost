@@ -16,6 +16,7 @@ from rich.console import Console
 from . import __version__, environments, leakcheck, runner, secretstore
 from .environments import EnvFileError
 from .httpfile import HttpFileError, parse
+from .importers.sanitize import Secret
 from .secretstore import SecretError
 from .template import TemplateError
 
@@ -202,6 +203,118 @@ def check(
         )
         raise typer.Exit(1)
     out.print("[green]No literal secrets found.[/]")
+
+
+@app.command("import")
+def import_(
+    source: Annotated[
+        str,
+        typer.Argument(
+            help="A Postman collection or environment export, a HAR file, a file holding curl "
+            "commands, '-' for stdin, or a curl command in quotes."
+        ),
+    ],
+    into: Annotated[
+        Path, typer.Option("--into", "-o", help="Workspace folder to import into.", file_okay=False)
+    ] = Path("."),
+    fmt: Annotated[
+        str | None,
+        typer.Option("--format", help="postman, postman-env, har or curl (default: detect)."),
+    ] = None,
+    file: Annotated[
+        str, typer.Option("--file", help="Target .http file for curl imports (appended to).")
+    ] = "imported.http",
+    everything: Annotated[
+        bool, typer.Option("--all", help="HAR: keep images, scripts and other non-API requests.")
+    ] = False,
+    save_secrets: Annotated[
+        bool,
+        typer.Option(
+            "--save-secrets", help="Store credentials found in the import in the OS keychain."
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show what would be imported; write nothing.")
+    ] = False,
+) -> None:
+    """Import requests from Postman, a HAR file or curl. Credentials never land in files."""
+    from . import importers
+
+    text = _read_source(source)
+    try:
+        result = importers.convert(text, fmt, name=file, everything=everything)
+    except importers.ImporterError as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from None
+
+    for rel, requests in result.files.items():
+        out.print(f"[bold]{rel}[/] [dim]({len(requests)} request(s))[/]")
+    for env, values in result.environments.items():
+        out.print(f"[bold]{environments.PUBLIC_FILE}[/] [dim]{env}: {len(values)} variable(s)[/]")
+    for warning in result.warnings:
+        out.print(f"[yellow]![/] {warning}")
+
+    if dry_run:
+        out.print("\n[dim]Dry run: nothing written.[/]")
+    else:
+        into.mkdir(parents=True, exist_ok=True)
+        try:
+            report = importers.write(result, into, append=result.files.keys() == {file})
+        except (importers.ImporterError, OSError, ValueError) as exc:
+            err.print(f"[red]{exc}[/]")
+            raise typer.Exit(1) from None
+        for rel in report.created:
+            out.print(f"[green]Created[/] {rel}")
+        for rel in report.appended:
+            out.print(f"[green]Appended to[/] {rel}")
+        if report.env_added:
+            out.print(
+                f"[green]Added[/] {len(report.env_added)} variable(s) to {environments.PUBLIC_FILE}"
+            )
+        for key in report.env_kept:
+            out.print(f"[yellow]![/] Kept your existing value for {key}")
+
+    _handle_secrets(result.secrets, save=save_secrets and not dry_run)
+
+
+def _read_source(source: str) -> str:
+    if source == "-":
+        return sys.stdin.read()
+    if source.lstrip().startswith("curl ") and not Path(source).exists():
+        return source
+    try:
+        return Path(source).read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        err.print(f"[red]Can't read {source}:[/] {exc}")
+        raise typer.Exit(2) from None
+
+
+def _handle_secrets(found: list[Secret], *, save: bool) -> None:
+    if not found:
+        return
+    out.print(f"\n{len(found)} credential(s) were replaced with keychain references:")
+    missing = []
+    for secret in found:
+        status = ""
+        if save and secret.value:
+            try:
+                secretstore.store(secret.name, secret.value)
+                status = "[green]saved to keychain[/]"
+            except SecretError as exc:
+                status = f"[red]not saved: {exc}[/]"
+                missing.append(secret.name)
+        else:
+            missing.append(secret.name)
+            status = "[dim]empty in the export[/]" if not secret.value else ""
+        out.print(f"  {secret.name} [dim]({secret.source})[/] {status}")
+    if missing:
+        out.print("\nAdd the values with:")
+        for name in missing:
+            out.print(f"  librepost secret set {name}")
+        if not save and any(s.value for s in found):
+            out.print(
+                "[dim]Or re-run with --save-secrets to store the values found in the import.[/]"
+            )
 
 
 EXAMPLE_ENV = """{

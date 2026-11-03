@@ -46,6 +46,33 @@ Or from the terminal:
 librepost run requests/example.http --name post-example --env dev -v
 ```
 
+## Import from Postman, a browser or curl
+
+```bash
+librepost import my-api.postman_collection.json      # Postman collection (v2.0/v2.1)
+librepost import staging.postman_environment.json    # Postman environment or globals
+librepost import session.har                         # browser devtools: "Save all as HAR"
+librepost import "curl -X POST https://api.example.com/items -d name=x"
+pbpaste | librepost import -                         # "Copy as cURL" from your browser
+```
+
+**Credentials never land in files.** Literal tokens, passwords, API keys and cookies are
+replaced with `{{secret:keychain/...}}` references. Add `--save-secrets` to put the values
+found in the import straight into your keychain; otherwise librepost prints the
+`librepost secret set` commands to run. Postman exports often leave secret values blank,
+and placeholders like "Your API key" are not treated as real values.
+
+| From | What you get |
+|---|---|
+| Postman collection | one `.http` file per folder, folders as directories; collection variables in `$shared`; collection and folder auth inherited per request |
+| Postman environment | an environment in `http-client.env.json` |
+| HAR | one file per host; only fetch/XHR and page requests (`--all` keeps everything); browser-only headers and repeats dropped |
+| curl | requests appended to `imported.http` (`--file` to change); handles bash `$'...'` quoting from browsers |
+
+Imports never overwrite: a clashing file gets a numbered name, and existing environment
+values are kept. Use `--dry-run` to preview. Not imported yet: pre-request and test scripts,
+file uploads, OAuth 1.0 and other signed auth schemes; each is reported as a warning.
+
 ## Requests
 
 ```http
@@ -65,6 +92,8 @@ GET {{baseUrl}}/{{apiVersion}}/users?page=1
 ```
 
 - Requests are separated by `###`; `# @name` gives one a name.
+- `Authorization: Basic user password` is encoded for you, so the password can be a
+  `{{secret:...}}` reference.
 - `@name = value` lines define file variables.
 - Built-in values: `{{$uuid}}`, `{{$timestamp}}`, `{{$isoTimestamp}}`, `{{$randomInt}}`.
 - Response handler scripts (`> {% ... %}`) are kept intact when you save, but are not run.
@@ -143,7 +172,7 @@ Python 3.11+ (`uvx` will fetch one for you) and a web browser. Git is optional.
 
 ## Roadmap
 
-- Import from Postman collections, curl commands and HAR files
+- Import from the UI (paste a curl command, upload a collection)
 - A native window (`pip install librepost-app[desktop]`)
 - Git status and commit from the UI
 - Client certificates (mTLS), proxy settings, request history and response diffs
