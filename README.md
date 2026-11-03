@@ -1,8 +1,8 @@
 # librepost
 
 [![CI](https://github.com/ag3ntsc4rn/librepost/actions/workflows/ci.yml/badge.svg)](https://github.com/ag3ntsc4rn/librepost/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/librepost-app?cacheSeconds=3600)](https://pypi.org/project/librepost-app/)
-[![Python](https://img.shields.io/pypi/pyversions/librepost-app?cacheSeconds=3600)](https://pypi.org/project/librepost-app/)
+[![PyPI](https://img.shields.io/pypi/v/librepost-app)](https://pypi.org/project/librepost-app/)
+[![Python](https://img.shields.io/pypi/pyversions/librepost-app)](https://pypi.org/project/librepost-app/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ag3ntsc4rn/librepost/blob/main/LICENSE)
 
 **A free, local-first API client.** Your requests are plain `.http` files in your git repo.
