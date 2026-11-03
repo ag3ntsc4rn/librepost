@@ -354,3 +354,14 @@ table.headers td { word-break: break-all; }
   .secret-set input[type=password] { width: 120px; }
 }
 .secrets-table .secret-set { flex-wrap: nowrap; }
+
+/* Scratch requests and per-file add */
+.editor-meta { display: contents; }
+.save-to { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.save-to input { width: 200px; font-family: var(--mono); font-size: 12px; color: var(--text); }
+.file-head { display: flex; align-items: center; padding-right: 8px; }
+.file-head .file-name { flex: 1; min-width: 0; }
+.add-to-file { padding: 0 6px; line-height: 18px; font-size: 14px; color: var(--muted); border-color: transparent; }
+.add-to-file:hover { color: var(--accent); border-color: var(--border); }
+.editor-head .status-msg { order: 1; }
+.editor-head .actions { order: 2; }

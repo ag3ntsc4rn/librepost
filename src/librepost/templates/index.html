@@ -27,10 +27,11 @@
   <div class="layout">
     <aside class="sidebar">
       <form class="new-file" hx-post="/files" hx-target="#main">
-        <input name="path" placeholder="new file, e.g. users/list.http" required aria-label="New file path">
+        <input name="path" placeholder="new file, e.g. users/list" required aria-label="New file path">
         <button type="submit" title="Create file">New</button>
       </form>
       <div class="sidebar-actions">
+        <button type="button" class="primary" id="new-request" hx-get="/scratch" hx-target="#main">New request</button>
         <button type="button" class="ghost" hx-get="/import" hx-target="#main">Import…</button>
         <button type="button" class="ghost" hx-get="/environments" hx-target="#main">Environments</button>
         <button type="button" class="ghost" hx-get="/secrets" hx-target="#main">Secrets</button>

@@ -1,0 +1,23 @@
+<div id="editor-meta" class="editor-meta"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <input type="hidden" name="file" value="{{ file }}">
+  <input type="hidden" name="index" value="{{ index }}">
+  {% if file %}
+  <span class="file-path" title="{{ file }}">{{ file }}</span>
+  <div class="actions">
+    <button type="button" class="ghost" hx-post="/requests" hx-target="#main" title="Add another request to this file">+ Request</button>
+    <button type="button" class="ghost danger" hx-post="/delete" hx-target="#main" hx-confirm="Delete this request from {{ file }}?">Delete</button>
+    <button type="button" id="save" hx-post="/save" hx-target="#status">Save</button>
+  </div>
+  {% else %}
+  <span class="muted small">Not saved yet</span>
+  <div class="actions">
+    <label class="save-to">Save to
+      <input name="target" list="workspace-files" value="{{ target or 'requests.http' }}" spellcheck="false" aria-label="File to save this request in">
+    </label>
+    <datalist id="workspace-files">
+      {% for path in files %}<option value="{{ path }}">{% endfor %}
+    </datalist>
+    <button type="button" id="save" hx-post="/save-as" hx-target="#status">Save</button>
+  </div>
+  {% endif %}
+</div>

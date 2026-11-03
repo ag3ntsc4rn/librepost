@@ -1,6 +1,11 @@
 {% for entry in entries %}
 <section class="file">
-  <h3 class="file-name" title="{{ entry.path }}">{{ entry.path }}</h3>
+  <div class="file-head">
+    <h3 class="file-name" title="{{ entry.path }}">{{ entry.path }}</h3>
+    {% if not entry.error %}
+    <button type="button" class="ghost add-to-file" hx-post="/requests" hx-vals='{{ {"file": entry.path} | tojson }}' hx-target="#main" title="Add a request to {{ entry.path }}" aria-label="Add a request to {{ entry.path }}">+</button>
+    {% endif %}
+  </div>
   {% if entry.error %}
   <p class="error small">{{ entry.error }}</p>
   {% endif %}
