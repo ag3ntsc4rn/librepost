@@ -32,6 +32,32 @@ librepost goes the other way:
 - **It stays in its lane.** librepost reads and writes `.http` files in the folder you point it
   at, and nothing else. No auto-updates, no plugins, no background services.
 
+## Install
+
+The package is `librepost-app` on PyPI; the command it installs is `librepost`.
+
+| Method | Install | Upgrade |
+|---|---|---|
+| [uv](https://docs.astral.sh/uv/) (recommended) | `uv tool install librepost-app` | `uv tool upgrade librepost-app` |
+| uvx (no install) | `uvx librepost-app ui` | always runs the latest release |
+| [pipx](https://pipx.pypa.io) | `pipx install librepost-app` | `pipx upgrade librepost-app` |
+| pip | `pip install librepost-app` | `pip install -U librepost-app` |
+
+On macOS with Homebrew Python and on recent Linux distributions, a global `pip install`
+stops with an "externally-managed-environment" error. Use uv or pipx, or install into a
+virtual environment:
+
+```bash
+python3 -m venv ~/.venvs/librepost
+~/.venvs/librepost/bin/pip install librepost-app
+~/.venvs/librepost/bin/librepost ui
+```
+
+On Windows, if `librepost` isn't found after `py -m pip install librepost-app`, Python's
+Scripts folder isn't on your PATH; `py -m librepost ui` works either way.
+
+librepost never updates itself. You upgrade when you choose to.
+
 ## Quick start
 
 ```bash
@@ -139,7 +165,7 @@ Found a hole? Please report it privately; see [SECURITY.md](SECURITY.md).
 
 ## Requirements
 
-Python 3.11+ (`uvx` will fetch one for you) and a web browser. Git is optional.
+Python 3.11+ (uv fetches one for you if needed) and a web browser. Git is optional.
 
 ## Roadmap
 
