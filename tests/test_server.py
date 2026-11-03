@@ -55,6 +55,7 @@ def make_client(root: Path, *, login: bool = True) -> TestClient:
         secret_store=STORED.__setitem__,
         secret_exists=lambda ref: ref.removeprefix("keychain/") in STORED,
         secret_delete=STORED.__delitem__,
+        secret_names=lambda: sorted(STORED),
     )
     client = TestClient(app, base_url=BASE)
     if login:
@@ -302,3 +303,18 @@ def test_secrets_page(workspace: Path) -> None:
         in client.post("/secrets/set", data={"name": "../x", "value": "v"}, headers=ORIGIN).text
     )
     assert client.post("/secrets/set", data={"name": "t", "value": "v"}).status_code == 403
+
+
+def test_secrets_page_lists_unreferenced_secrets(workspace: Path) -> None:
+    STORED.clear()
+    client = make_client(workspace)
+    html = client.post(
+        "/secrets/set", data={"name": "github", "value": "fake-gh"}, headers=ORIGIN
+    ).text
+    assert "Not used in this workspace" in html
+    assert "{{secret:keychain/github}}" in html and "fake-gh" not in html
+    # A referenced secret is listed once, in the main table.
+    client.post("/secrets/set", data={"name": "token", "value": "fake-t"}, headers=ORIGIN)
+    html = client.get("/secrets").text
+    assert html.count("<code>keychain/token</code>") == 1
+    assert html.count("<code>keychain/github</code>") == 1
