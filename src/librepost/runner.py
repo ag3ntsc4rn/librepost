@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -65,7 +67,28 @@ def prepare(
     renderer.check()
     if "://" not in url:
         url = "http://" + url
+    headers = [
+        (k, _basic_auth(v, renderer) if k.lower() == "authorization" else v) for k, v in headers
+    ]
+    if any(k.lower() == "content-type" and "multipart/" in v.lower() for k, v in headers):
+        # Multipart needs CRLF line breaks; .http files are saved with LF.
+        body = re.sub(r"\r?\n", "\r\n", body)
     return Prepared(request.method, url, headers, body, renderer)
+
+
+_BASIC_PAIR = re.compile(r"^(basic)\s+(\S+)\s+(.+)$", re.IGNORECASE)
+
+
+def _basic_auth(value: str, renderer: Renderer) -> str:
+    """`Basic user password` (the JetBrains form) becomes `Basic base64(user:password)`."""
+    match = _BASIC_PAIR.match(value.strip())
+    if not match:
+        return value
+    scheme, user, password = match.groups()
+    encoded = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
+    if any(secret in password for secret in renderer.secret_values):
+        renderer.secret_values.add(encoded)
+    return f"{scheme} {encoded}"
 
 
 def send(

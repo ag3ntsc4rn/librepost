@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `librepost import`: Postman collections (v2.0/v2.1) and environment/globals exports, HAR
+  files, and curl commands (including browsers' "Copy as cURL"). Literal credentials are
+  replaced with keychain references; `--save-secrets` stores the values found. Imports never
+  overwrite existing files or environment values. `--dry-run` previews.
+- `Authorization: Basic user password` (the JetBrains form) is base64-encoded at send time,
+  so the password can be a secret reference.
+- Multipart bodies are sent with CRLF line breaks.
+
+### Changed
+
+- The leak check no longer flags prose placeholders such as "Your API key".
+
 ## [0.1.0] - 2026-11-03
 
 First release. On PyPI the package is `librepost-app`, because PyPI doesn't allow the name
