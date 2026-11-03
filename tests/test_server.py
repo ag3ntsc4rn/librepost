@@ -42,9 +42,17 @@ def workspace(tmp_path: Path) -> Path:
     return tmp_path
 
 
+STORED: dict[str, str] = {}
+
+
 def make_client(root: Path, *, login: bool = True) -> TestClient:
     app = create_app(
-        root, port=PORT, token=TOKEN, transport=httpx.MockTransport(echo), secret_lookup=lookup
+        root,
+        port=PORT,
+        token=TOKEN,
+        transport=httpx.MockTransport(echo),
+        secret_lookup=lookup,
+        secret_store=STORED.__setitem__,
     )
     client = TestClient(app, base_url=BASE)
     if login:
@@ -171,3 +179,49 @@ def test_save_refuses_traversal(workspace: Path) -> None:
 def test_open_request(workspace: Path) -> None:
     html = make_client(workspace).get("/request?file=api.http&index=0").text
     assert 'value="me"' in html and "{{base}}/me" in html
+
+
+def test_import_form(workspace: Path) -> None:
+    html = make_client(workspace).get("/import").text
+    assert 'hx-encoding="multipart/form-data"' in html and 'name="save_secrets"' in html
+
+
+def test_import_pasted_curl_saves_secret(workspace: Path) -> None:
+    STORED.clear()
+    command = "curl https://api.example.invalid/x -H 'Authorization: Bearer fake-ui-token-123'"  # gitleaks:allow
+    response = make_client(workspace).post(
+        "/import",
+        data={"text": command, "file": "pasted", "save_secrets": "1"},
+        headers=ORIGIN,
+    )
+    assert response.headers["hx-trigger"] == "tree-changed"
+    assert "Imported 1 request(s)" in response.text and "saved to keychain" in response.text
+    assert STORED == {"api-example-invalid-token": "fake-ui-token-123"}
+    text = (workspace / "pasted.http").read_text()
+    assert "{{secret:keychain/api-example-invalid-token}}" in text
+    assert "fake-ui-token-123" not in text and "fake-ui-token-123" not in response.text
+
+
+def test_import_upload_without_saving(workspace: Path) -> None:
+    STORED.clear()
+    collection = {
+        "info": {"name": "Shop"},
+        "item": [{"name": "list", "request": {"url": "https://shop.example.invalid/items"}}],
+    }
+    response = make_client(workspace).post(
+        "/import",
+        files={
+            "upload": ("shop.postman_collection.json", json.dumps(collection), "application/json")
+        },
+        headers=ORIGIN,
+    )
+    assert "Created <code>shop.http</code>" in response.text
+    assert (workspace / "shop.http").exists() and STORED == {}
+
+
+def test_import_errors(workspace: Path) -> None:
+    client = make_client(workspace)
+    assert "Paste something" in client.post("/import", data={"text": ""}, headers=ORIGIN).text
+    assert "Unrecognised JSON" in client.post("/import", data={"text": "{}"}, headers=ORIGIN).text
+    # Like every state-changing endpoint, import refuses cross-origin requests.
+    assert client.post("/import", data={"text": "curl https://a.invalid"}).status_code == 403

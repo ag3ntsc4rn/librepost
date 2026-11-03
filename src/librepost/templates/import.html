@@ -1,0 +1,24 @@
+<form class="import" hx-post="/import" hx-target="#import-result" hx-encoding="multipart/form-data" autocomplete="off">
+  <h2>Import</h2>
+  <p class="muted">From Postman (collection or environment export), a browser HAR file, or curl commands.
+    Literal tokens, passwords and cookies are replaced with keychain references; they are never written to files.</p>
+  <div class="tabs" data-tabs>
+    <div class="tab-list" role="tablist">
+      <button type="button" role="tab" data-tab="paste" aria-selected="true">Paste</button>
+      <button type="button" role="tab" data-tab="upload" aria-selected="false">Upload a file</button>
+    </div>
+    <div class="tab-panel" data-panel="paste">
+      <textarea name="text" rows="10" spellcheck="false" placeholder="curl 'https://api.example.com/items' -H 'accept: application/json'&#10;&#10;…or paste Postman / HAR JSON"></textarea>
+    </div>
+    <div class="tab-panel" data-panel="upload" hidden>
+      <input type="file" name="upload" accept=".json,.har,.txt,application/json">
+    </div>
+  </div>
+  <div class="import-options">
+    <label><input type="checkbox" name="save_secrets" value="1" checked> Save credentials to my keychain</label>
+    <label><input type="checkbox" name="all" value="1"> HAR: keep images, scripts and other non-API requests</label>
+    <label class="inline">curl commands go into <input name="file" value="imported.http" aria-label="Target file for curl imports"></label>
+  </div>
+  <button type="submit" class="primary">Import</button>
+</form>
+<section id="import-result" aria-live="polite"></section>

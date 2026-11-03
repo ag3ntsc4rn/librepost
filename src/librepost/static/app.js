@@ -47,6 +47,14 @@
     area.setRangeText("  ", area.selectionStart, area.selectionEnd, "end");
   });
 
+  // After a successful import, clear what was pasted: it may contain credentials.
+  document.addEventListener("htmx:afterRequest", (event) => {
+    const form = event.target.closest && event.target.closest("form.import");
+    if (!form || !event.detail.successful) return;
+    if (!document.querySelector("#import-result .import-summary")) return;
+    form.reset();
+  });
+
   // Remember the chosen environment in this browser only.
   document.addEventListener("DOMContentLoaded", () => {
     const select = document.getElementById("env");

@@ -33,6 +33,9 @@
         <input name="path" placeholder="new file, e.g. users/list.http" required aria-label="New file path">
         <button type="submit" title="Create file">New</button>
       </form>
+      <div class="sidebar-actions">
+        <button type="button" class="ghost" hx-get="/import" hx-target="#main">Import…</button>
+      </div>
       <nav id="tree" hx-get="/tree" hx-trigger="tree-changed from:body">
         {% include "tree.html" %}
       </nav>
