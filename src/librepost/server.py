@@ -305,7 +305,11 @@ def create_app(
                 error=prepared.renderer.mask(f"{type(exc).__name__}: {exc}"),
                 sent=prepared.masked(),
             )
-        outcome = checks.run(checks.parse(req.checks), result)
+        try:
+            plan = checks.parse(prepared.checks)
+        except checks.CheckError as exc:
+            return render("response.html", error=prepared.renderer.mask(str(exc)))
+        outcome = checks.run(plan, result)
         for name, val in outcome.values.items():
             captured[name] = val
             if name in outcome.secret:
@@ -323,7 +327,7 @@ def create_app(
             sent=prepared.masked(),
             headers=[(k, mask.mask(v)) for k, v in result.headers],
             outcome=outcome,
-            results=[(r.text, r.passed, mask.mask(r.actual)) for r in outcome.results],
+            results=[(mask.mask(r.text), r.passed, mask.mask(r.actual)) for r in outcome.results],
             captured=_captured_view(captured, captured_secret),
             new_captures=sorted(outcome.values),
         )

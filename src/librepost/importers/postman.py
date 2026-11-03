@@ -16,6 +16,7 @@ from ..environments import SHARED
 from ..httpfile import METHODS, Request
 from . import ImporterError, ImportResult
 from .sanitize import Sanitizer, slug
+from .scripts import convert as convert_script
 
 CONTENT_TYPES = {
     "json": "application/json",
@@ -50,14 +51,17 @@ class _Converter:
         self.name = str(data.get("info", {}).get("name") or "postman")
         self.result = ImportResult()
         self.sanitizer = Sanitizer(self.name)
-        self.scripts = 0
+        self.skipped_scripts = 0
+        self.converted_checks = 0
         self.unknown_dynamic: set[str] = set()
         self.unsupported_auth: dict[str, list[str]] = {}
 
     def run(self) -> ImportResult:
-        self._count_scripts(self.data)
         root = slug(self.name, "postman")
-        self._folder(self.data.get("item", []), [root], self.data.get("auth"), self.name)
+        top_checks = self._script_checks(self.data)
+        self._folder(
+            self.data.get("item", []), [root], self.data.get("auth"), self.name, top_checks
+        )
         variables = {}
         for var in self.data.get("variable", []) or []:
             if not isinstance(var, dict) or var.get("disabled") or not var.get("key"):
@@ -67,9 +71,14 @@ class _Converter:
             variables[key] = self.sanitizer.env_value(SHARED, key, value)
         if variables:
             self.result.environments[SHARED] = variables
-        if self.scripts:
+        if self.converted_checks:
             self.result.warnings.append(
-                f"Skipped {self.scripts} pre-request/test script(s): librepost doesn't run scripts."
+                f"Converted test scripts into {self.converted_checks} @capture/@expect line(s); review them in each request's Checks tab."
+            )
+        if self.skipped_scripts:
+            self.result.warnings.append(
+                f"Skipped {self.skipped_scripts} script(s) with code librepost can't convert "
+                "(pre-request scripts, or test code beyond simple captures and checks)."
             )
         for kind, requests in self.unsupported_auth.items():
             sample = ", ".join(repr(n) for n in requests[:3]) + (", …" if len(requests) > 3 else "")
@@ -84,21 +93,30 @@ class _Converter:
         self.result.secrets = self.sanitizer.secrets
         return self.result
 
-    def _count_scripts(self, node: dict[str, Any]) -> None:
+    def _script_checks(self, node: dict[str, Any]) -> list[str]:
+        """Convert a node's test script; count anything that can't be converted."""
+        found: list[str] = []
         for event in node.get("event", []) or []:
-            exec_ = (event.get("script") or {}).get("exec") if isinstance(event, dict) else None
-            if (
-                isinstance(exec_, list)
-                and any(str(line).strip() for line in exec_)
-                or isinstance(exec_, str)
-                and exec_.strip()
-            ):
-                self.scripts += 1
-        for child in node.get("item", []) or []:
-            if isinstance(child, dict):
-                self._count_scripts(child)
+            if not isinstance(event, dict):
+                continue
+            exec_ = (event.get("script") or {}).get("exec")
+            lines = exec_ if isinstance(exec_, list) else str(exec_ or "").splitlines()
+            lines = [str(line) for line in lines]
+            if not any(line.strip() for line in lines):
+                continue
+            if event.get("listen") != "test":
+                self.skipped_scripts += 1
+                continue
+            conversion = convert_script(lines)
+            found.extend(conversion.checks)
+            self.converted_checks += len(conversion.checks)
+            if conversion.unconverted:
+                self.skipped_scripts += 1
+        return found
 
-    def _folder(self, items: list[Any], path: list[str], auth: Any, label: str) -> None:
+    def _folder(
+        self, items: list[Any], path: list[str], auth: Any, label: str, inherited: list[str]
+    ) -> None:
         requests: list[Request] = []
         used_dirs: set[str] = set()
         for item in items:
@@ -111,10 +129,20 @@ class _Converter:
                     sub, n = f"{base}-{n}", n + 1
                 used_dirs.add(sub)
                 folder_auth = item.get("auth") or auth
-                self._folder(item["item"] or [], [*path, sub], folder_auth, str(item.get("name")))
+                folder_checks = inherited + self._script_checks(item)
+                self._folder(
+                    item["item"] or [],
+                    [*path, sub],
+                    folder_auth,
+                    str(item.get("name")),
+                    folder_checks,
+                )
             elif "request" in item:
                 request = self._request(item, auth)
                 if request is not None:
+                    # Collection and folder scripts run for every request inside them.
+                    own = self._script_checks(item)
+                    request.checks = list(dict.fromkeys(inherited + own))
                     requests.append(request)
         if requests:
             rel = "/".join(path[:-1] + [path[-1] + ".http"])

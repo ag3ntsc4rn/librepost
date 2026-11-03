@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A **Checks** tab in the editor, and ✓/✗ results plus captured values under each response,
   with a button to clear captured values.
 - `librepost run` prints check results and exits with status 1 when a check fails.
+- `librepost test`: run every request in folders or files in order, carrying captured values
+  along; a ✓/✗ line per request, a summary, `--bail`, and `--junit report.xml` for CI. Exits
+  with status 1 on any failure. Secrets and captured credentials never reach the output or
+  the report.
+- The Postman importer converts common test-script statements into `@capture` and `@expect`
+  lines (`pm.environment.set(…, pm.response.json()…)`, `pm.response.to.have.status`,
+  `pm.expect(…).to.eql/include/be.below/exist/have.property…`, headers, response time),
+  including collection- and folder-level scripts. Only the rest is reported as skipped.
+- Placeholders in check lines are filled in, so `@expect $.id == {{userId}}` works.
 
 ## [0.4.0] - 2026-11-03
 
