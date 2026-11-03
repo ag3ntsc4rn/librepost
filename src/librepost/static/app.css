@@ -376,3 +376,12 @@ table.headers td { word-break: break-all; }
 .captured-item.new code:first-child { color: var(--accent); }
 .small-button { padding: 1px 8px; font-size: 12px; }
 .warn-text { color: var(--warn); }
+
+/* Connection settings */
+.conn-form { margin-top: 28px; padding-top: 4px; border-top: 1px solid var(--border); }
+.conn-grid { display: grid; grid-template-columns: 170px 1fr; gap: 8px 12px; align-items: center; }
+.conn-grid > label { font-size: 13px; color: var(--muted); }
+.conn-grid input:not([type=checkbox]) { width: 100%; font-family: var(--mono); font-size: 13px; }
+.conn-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.conn-inline input[type=password] { flex: 1; min-width: 180px; }
+@media (max-width: 720px) { .conn-grid { grid-template-columns: 1fr; } }

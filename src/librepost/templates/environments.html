@@ -90,5 +90,38 @@
       <button type="submit" class="primary">Save</button>
     </div>
   </form>
+
+  <form class="conn-form" hx-post="/environments/connection" hx-target="#main" autocomplete="off">
+    <input type="hidden" name="env" value="{{ current }}">
+    <h3>Connection{% if current == shared %} (all environments){% endif %}</h3>
+    <p class="muted small">Client certificate, extra CA and proxy for {{ "every environment" if current == shared else current }}.
+      Saved only in <code>http-client.private.env.json</code>: settings that redirect or weaken your connections never come from a shared file.
+      Paths can start with <code>~</code>; relative paths are relative to this folder. PEM files only.</p>
+    <div class="conn-grid">
+      <label for="conn-cert">Client certificate</label>
+      <input id="conn-cert" name="client_cert" value="{{ conn.client_cert }}" placeholder="~/.certs/me.pem" spellcheck="false">
+      <label for="conn-key">Client key</label>
+      <input id="conn-key" name="client_key" value="{{ conn.client_key }}" placeholder="~/.certs/me-key.pem (if not in the certificate file)" spellcheck="false">
+      <label for="conn-pass">Key passphrase</label>
+      <div class="conn-inline">
+        <input id="conn-pass" type="password" name="passphrase" placeholder="{{ 'replace stored passphrase' if conn.passphrase_ref or conn.has_literal_passphrase else 'only if the key is encrypted' }}" autocomplete="new-password">
+        {% if conn.passphrase_ref %}
+        <span class="secret-ref"><code>{{ conn.passphrase_ref }}</code>
+          {% if secret_set.get(conn.passphrase_ref) %}<span class="badge ok">set</span>{% else %}<span class="badge warn">missing</span>{% endif %}</span>
+        {% elif conn.has_literal_passphrase %}<span class="badge warn">stored in the file</span>{% endif %}
+        {% if conn.passphrase_ref or conn.has_literal_passphrase %}
+        <label class="small"><input type="checkbox" name="clear_passphrase" value="1"> remove</label>
+        {% endif %}
+      </div>
+      <label for="conn-ca">Extra CA certificate</label>
+      <input id="conn-ca" name="ca" value="{{ conn.ca }}" placeholder="~/.certs/corp-ca.pem (added to the usual CAs)" spellcheck="false">
+      <label for="conn-proxy">Proxy</label>
+      <input id="conn-proxy" name="proxy" value="{{ conn.proxy }}" placeholder="http://proxy.corp:8080 (password: {{ '{{' }}secret:keychain/name{{ '}}' }})" spellcheck="false">
+      <span></span>
+      <label class="small"><input type="checkbox" name="no_verify" value="1" {% if not conn.verify %}checked{% endif %}> Don't verify the server's certificate (testing only)</label>
+    </div>
+    <p class="muted small">A new passphrase is stored in your keychain. <code>HTTPS_PROXY</code>, <code>NO_PROXY</code> and <code>SSL_CERT_FILE</code> from your shell are also honoured.</p>
+    <div class="env-actions"><span class="spacer"></span><button type="submit">Save connection</button></div>
+  </form>
   {% endif %}
 </div>

@@ -5,6 +5,7 @@ import httpx
 import pytest
 from starlette.testclient import TestClient
 
+from librepost.secretstore import SecretError
 from librepost.server import create_app
 
 PORT = 8765
@@ -26,7 +27,13 @@ def echo(request: httpx.Request) -> httpx.Response:
 
 
 def lookup(ref: str) -> str:
-    return {"keychain/token": "s3cr3t-value"}[ref]
+    # Like the real keychain: stored values, a fixed test token, else "not found".
+    key = ref.removeprefix("keychain/")
+    if key in STORED:
+        return STORED[key]
+    if ref == "keychain/token":
+        return "s3cr3t-value"
+    raise SecretError(f"Secret {key!r} is not in the keychain.")
 
 
 @pytest.fixture
@@ -447,3 +454,38 @@ def test_bad_check_line_is_reported(workspace: Path) -> None:
         headers=ORIGIN,
     )
     assert "unknown subject" in response.text
+
+
+def test_environment_connection_form(workspace: Path) -> None:
+    STORED.clear()
+    client = make_client(workspace)
+    html = client.get("/environments?env=dev").text
+    assert 'hx-post="/environments/connection"' in html and 'name="client_cert"' in html
+
+    cert = workspace / "me.pem"
+    response = client.post(
+        "/environments/connection",
+        data={
+            "env": "dev",
+            "client_cert": "me.pem",
+            "passphrase": "fake-pass",
+            "proxy": "http://proxy.invalid:3128",
+        },
+        headers=ORIGIN,
+    )
+    # Saved, but the certificate file doesn't exist yet, and the page says so.
+    assert (
+        "Saved, but it won&#39;t work yet" in response.text and "doesn&#39;t exist" in response.text
+    )
+    assert STORED == {"dev-cert-passphrase": "fake-pass"}
+    private = json.loads((workspace / "http-client.private.env.json").read_text())
+    assert private["dev"]["SSLConfiguration"]["clientCertificate"] == "me.pem"
+    assert "SSLConfiguration" not in (workspace / "http-client.env.json").read_text()
+    assert not cert.exists()
+
+    response = client.post(
+        "/environments/connection",
+        data={"env": "dev", "proxy": "proxy.invalid:3128"},
+        headers=ORIGIN,
+    )
+    assert "must start with http://" in response.text

@@ -1,12 +1,20 @@
 {% if error %}
 <div class="error">{{ error }}</div>
 {% endif %}
+{% for warning in warnings or [] %}
+<p class="warn-text small">{{ warning }}</p>
+{% endfor %}
 {% if result %}
 <div class="response-meta">
   <span class="status-code s{{ result.status // 100 }}xx">{{ result.status }} {{ result.reason }}</span>
   <span>{{ "%.0f" | format(result.elapsed_ms) }} ms</span>
   <span>{{ size }}</span>
   <span class="muted">{{ result.http_version }}</span>
+  {% if result.tls %}
+  <span class="muted" title="{% if result.tls.subject %}Certificate for {{ result.tls.subject }}, issued by {{ result.tls.issuer }}, expires {{ result.tls.expires }}{% else %}The server certificate was not verified{% endif %}">
+    {{ result.tls.version }}{% if result.tls.subject %} · {{ result.tls.subject }} ({{ result.tls.issuer }}){% else %} · <span class="warn-text">certificate not verified</span>{% endif %}
+  </span>
+  {% endif %}
   {% if result.redirects %}
   <span class="muted">{{ result.redirects | length }} redirect(s) → {{ result.url }}</span>
   {% endif %}

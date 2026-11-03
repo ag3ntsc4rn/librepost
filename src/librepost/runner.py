@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import base64
 import re
+import ssl
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -47,6 +49,9 @@ class Result:
     elapsed_ms: float
     truncated: bool = False
     redirects: list[str] = field(default_factory=list)
+    # TLS details for HTTPS: version, cipher, and the server certificate's subject,
+    # issuer and expiry when it was verified.
+    tls: dict[str, str] = field(default_factory=dict)
 
     @property
     def content_type(self) -> str:
@@ -102,7 +107,8 @@ def send(
     prepared: Prepared,
     *,
     timeout: float = 30.0,
-    verify: bool = True,
+    verify: bool | ssl.SSLContext = True,
+    proxy: str | None = None,
     follow_redirects: bool = True,
     transport: httpx.BaseTransport | None = None,
     max_body: int = MAX_BODY,
@@ -115,6 +121,7 @@ def send(
         verify=verify,
         follow_redirects=follow_redirects,
         transport=transport,
+        proxy=proxy,
         trust_env=True,
     ) as client:
         started = time.perf_counter()
@@ -124,6 +131,7 @@ def send(
             headers=headers,
             content=prepared.body.encode("utf-8") if prepared.body else None,
         ) as response:
+            tls = _tls_details(response)
             chunks: list[bytes] = []
             size = 0
             truncated = False
@@ -145,4 +153,29 @@ def send(
             elapsed_ms=elapsed,
             truncated=truncated,
             redirects=[str(r.url) for r in response.history],
+            tls=tls,
         )
+
+
+def _tls_details(response: httpx.Response) -> dict[str, str]:
+    stream = response.extensions.get("network_stream")
+    ssl_object: Any = stream.get_extra_info("ssl_object") if stream is not None else None
+    # httpcore hands back OpenSSL's own socket object, so check behaviour, not type.
+    if ssl_object is None or not all(
+        hasattr(ssl_object, m) for m in ("version", "cipher", "getpeercert")
+    ):
+        return {}
+    details = {"version": ssl_object.version() or "", "cipher": (ssl_object.cipher() or ("",))[0]}
+    cert = ssl_object.getpeercert()  # empty when the certificate wasn't verified
+    if cert:
+
+        def name(field: str) -> str:
+            parts = dict(item for rdn in cert.get(field, ()) for item in rdn)
+            return str(parts.get("commonName") or parts.get("organizationName") or "")
+
+        details["subject"] = name("subject")
+        details["issuer"] = name("issuer")
+        details["expires"] = str(cert.get("notAfter", ""))
+    else:
+        details["verified"] = "no"
+    return details

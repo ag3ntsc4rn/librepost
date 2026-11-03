@@ -13,7 +13,7 @@ import httpx
 import typer
 from rich.console import Console
 
-from . import __version__, checks, environments, leakcheck, runner, secretstore
+from . import __version__, checks, connection, environments, leakcheck, runner, secretstore
 from .environments import EnvFileError
 from .httpfile import HttpFileError, parse
 from .importers.sanitize import Secret
@@ -143,16 +143,29 @@ def run(
         variables.update(environments.variables(root, env))
         prepared = runner.prepare(request, variables)
         plan = checks.parse(prepared.checks)
-    except (EnvFileError, TemplateError, SecretError, HttpFileError, checks.CheckError) as exc:
+        conn = connection.load(root, env)
+        net = connection.settings(conn, prepared.renderer, insecure=insecure)
+    except (
+        EnvFileError,
+        TemplateError,
+        SecretError,
+        HttpFileError,
+        checks.CheckError,
+        connection.ConnectionError_,
+    ) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from None
+    for warning in conn.warnings:
+        err.print(f"[yellow]![/] {warning}")
 
     if verbose:
         for line in prepared.masked().split("\n\n", 1)[0].splitlines():
             err.print(f"[dim]> {line}[/]")
+        for note in net.notes:
+            err.print(f"[dim]# {prepared.renderer.mask(note)}[/]")
         err.print()
     try:
-        result = runner.send(prepared, timeout=timeout, verify=not insecure)
+        result = runner.send(prepared, timeout=timeout, verify=net.verify, proxy=net.proxy)
     except httpx.HTTPError as exc:
         err.print(f"[red]{type(exc).__name__}:[/] {prepared.renderer.mask(str(exc))}")
         raise typer.Exit(1) from None
@@ -163,6 +176,14 @@ def run(
         f"[dim]{result.elapsed_ms:.0f} ms, {len(result.body)} bytes[/]"
     )
     if verbose:
+        if result.tls:
+            tls = result.tls
+            cert = (
+                f"{tls['subject']} (issued by {tls['issuer']}, expires {tls['expires']})"
+                if tls.get("subject")
+                else "certificate not verified"
+            )
+            err.print(f"[dim]* {tls['version']} {tls['cipher']}, {cert}[/]")
         for key, value in result.headers:
             err.print(f"[dim]< {key}: {value}[/]")
         err.print()
@@ -235,6 +256,8 @@ def test(
             out.print(f"    [red]{step.error}[/]")
 
     try:
+        for warning in connection.load(root, env).warnings:
+            err.print(f"[yellow]![/] {warning}")
         result = collection.run(
             targets, root, env, bail=bail, timeout=timeout, verify=not insecure, on_step=show
         )

@@ -191,6 +191,38 @@ jobs:
 Secrets and captured credentials are masked in the output and never written to the report.
 Use `{{secret:env/NAME}}` references in CI, where there's no keychain.
 
+## Client certificates, CAs and proxies
+
+Set them per environment on the Environments screen (**Connection**), or in
+`http-client.private.env.json` using the JetBrains HTTP Client format:
+
+```json
+{
+  "dev": {
+    "SSLConfiguration": {
+      "clientCertificate": "~/.certs/me.pem",
+      "clientCertificateKey": "~/.certs/me-key.pem",
+      "certificatePassphrase": "{{secret:keychain/dev-cert-passphrase}}",
+      "caCertificate": "~/.certs/corp-ca.pem",
+      "verifyHostCertificate": true
+    },
+    "ProxyConfiguration": {"url": "http://me:{{secret:keychain/proxy}}@proxy.corp:8080"}
+  }
+}
+```
+
+- **Private file only.** These settings are ignored (with a warning) in the committed
+  `http-client.env.json`, so a repository you clone can't route your requests through its
+  proxy or switch off certificate checks.
+- Client certificate and key as PEM files (or both in one file); an encrypted key needs
+  `certificatePassphrase`, ideally a keychain reference. Convert `.p12`/`.pfx` with
+  `openssl pkcs12 -in cert.p12 -out cert.pem -nodes`.
+- `caCertificate` is added to the usual trusted CAs, for internal services.
+- `$shared` settings apply to every environment. `HTTPS_PROXY`, `NO_PROXY` and
+  `SSL_CERT_FILE` from your shell also work.
+- Responses over HTTPS show the TLS version and the server certificate's subject and issuer
+  (`librepost run -v` prints the cipher and expiry too), or a warning when it wasn't verified.
+
 ## Environments
 
 Same format as the JetBrains HTTP Client:
@@ -272,7 +304,7 @@ Python 3.11+ (uv fetches one for you if needed) and a web browser. Git is option
 
 - A native window (`pip install librepost-app[desktop]`)
 - Git status and commit from the UI
-- Client certificates (mTLS), proxy settings, request history and response diffs
+- Request history and response diffs
 - More secret providers: 1Password CLI, HashiCorp Vault, `pass`
 
 ## Contributing

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import httpx
 
-from . import checks, environments, runner, secretstore
+from . import checks, connection, environments, runner, secretstore
 from .checks import CheckResult
 from .httpfile import HttpFileError
 from .secretstore import SecretError
@@ -43,6 +43,7 @@ class Step:
 class Run:
     steps: list[Step] = field(default_factory=list)
     seconds: float = 0.0
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def failed(self) -> list[Step]:
@@ -86,6 +87,8 @@ def run(
     started = time.perf_counter()
     result = Run()
     env_vars = environments.variables(root, env)
+    conn = connection.load(root, env)
+    result.warnings = conn.warnings
     captured: dict[str, str] = {}
     secret: set[str] = set()
 
@@ -102,11 +105,22 @@ def run(
                     request, variables, secret_lookup, mask={captured[n] for n in secret}
                 )
                 plan = checks.parse(prepared.checks)
+                net = connection.settings(conn, prepared.renderer, insecure=not verify)
                 step.url = prepared.renderer.mask(prepared.url)
                 response = runner.send(
-                    prepared, timeout=timeout, verify=verify, transport=transport
+                    prepared,
+                    timeout=timeout,
+                    verify=net.verify,
+                    proxy=net.proxy,
+                    transport=transport,
                 )
-            except (checks.CheckError, TemplateError, SecretError, HttpFileError) as exc:
+            except (
+                checks.CheckError,
+                TemplateError,
+                SecretError,
+                HttpFileError,
+                connection.ConnectionError_,
+            ) as exc:
                 step.error = str(exc)
             except httpx.HTTPError as exc:
                 step.error = f"{type(exc).__name__}: {exc}"

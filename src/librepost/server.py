@@ -34,11 +34,11 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from . import __version__, checks, environments, importers, manage, runner, secretstore
+from . import __version__, checks, connection, environments, importers, manage, runner, secretstore
 from .environments import EnvFileError
 from .httpfile import METHODS, HttpFileError, Request, format_headers, parse_headers, validate
 from .secretstore import SecretError
-from .template import TemplateError
+from .template import Renderer, TemplateError
 from .workspace import Workspace, WorkspaceError
 
 CSP = (
@@ -295,15 +295,30 @@ def create_app(
             variables.update(captured)
             secret_values = {captured[n] for n in captured_secret if n in captured}
             prepared = runner.prepare(req, variables, secret_lookup, mask=secret_values)
-        except (HttpFileError, WorkspaceError, EnvFileError, TemplateError, SecretError) as exc:
+            conn = connection.load(workspace.root, str(form.get("env", "")) or None)
+            net = connection.settings(conn, prepared.renderer)
+        except (
+            HttpFileError,
+            WorkspaceError,
+            EnvFileError,
+            TemplateError,
+            SecretError,
+            connection.ConnectionError_,
+        ) as exc:
             return render("response.html", error=str(exc))
+        sent = prepared.masked()
+        if net.notes:
+            sent += "\n\n" + prepared.renderer.mask("\n".join(f"# {n}" for n in net.notes))
         try:
-            result = await run_in_threadpool(runner.send, prepared, transport=transport)
+            result = await run_in_threadpool(
+                runner.send, prepared, transport=transport, verify=net.verify, proxy=net.proxy
+            )
         except httpx.HTTPError as exc:
             return render(
                 "response.html",
                 error=prepared.renderer.mask(f"{type(exc).__name__}: {exc}"),
-                sent=prepared.masked(),
+                sent=sent,
+                warnings=conn.warnings,
             )
         try:
             plan = checks.parse(prepared.checks)
@@ -324,7 +339,8 @@ def create_app(
             # Responses often echo credentials back (e.g. /headers endpoints).
             body=mask.mask(_display_body(result)),
             size=_human_size(len(result.body)),
-            sent=prepared.masked(),
+            sent=sent,
+            warnings=conn.warnings,
             headers=[(k, mask.mask(v)) for k, v in result.headers],
             outcome=outcome,
             results=[(mask.mask(r.text), r.passed, mask.mask(r.actual)) for r in outcome.results],
@@ -392,7 +408,10 @@ def create_app(
             env_rows = manage.rows(workspace.root, current)
         except manage.ManageError as exc:
             return render("environments.html", names=[], error=str(exc))
+        conn_form = manage.connection_form(workspace.root, current)
         refs = {row.secret_ref for row in env_rows if row.secret_ref}
+        if conn_form.passphrase_ref:
+            refs.add(conn_form.passphrase_ref)
         secret_set = {ref: secret_exists(ref) for ref in refs}
         return render(
             "environments.html",
@@ -402,6 +421,7 @@ def create_app(
             secret_set=secret_set,
             shared=environments.SHARED,
             tracked=manage.private_file_tracked(workspace.root),
+            conn=conn_form,
             status=status,
             error=error,
             **extra,
@@ -447,6 +467,35 @@ def create_app(
         response = environments_page(env, status=message)
         response.headers["HX-Trigger"] = "envs-changed"
         return response
+
+    async def environments_connection(request: HttpRequest) -> Response:
+        form = await request.form()
+        env = str(form.get("env", ""))
+        settings = manage.ConnectionForm(
+            client_cert=str(form.get("client_cert", "")).strip(),
+            client_key=str(form.get("client_key", "")).strip(),
+            ca=str(form.get("ca", "")).strip(),
+            verify=not form.get("no_verify"),
+            proxy=str(form.get("proxy", "")).strip(),
+        )
+        try:
+            await run_in_threadpool(
+                manage.save_connection,
+                workspace.root,
+                env,
+                settings,
+                str(form.get("passphrase", "")),
+                bool(form.get("clear_passphrase")),
+                secret_store,
+            )
+            # Check the files can actually be loaded, so mistakes show up here, not on Send.
+            conn = connection.load(workspace.root, None if env == environments.SHARED else env)
+            connection.settings(conn, Renderer({}, secret_lookup))
+        except (manage.ManageError, SecretError, OSError) as exc:
+            return environments_page(env, error=str(exc))
+        except (connection.ConnectionError_, TemplateError) as exc:
+            return environments_page(env, error=f"Saved, but it won't work yet: {exc}")
+        return environments_page(env, status=f"Saved connection settings for {env}.")
 
     async def environments_create(request: HttpRequest) -> Response:
         form = await request.form()
@@ -545,6 +594,7 @@ def create_app(
             Route("/import", import_, methods=["POST"]),
             Route("/environments", environments_view),
             Route("/environments/save", environments_save, methods=["POST"]),
+            Route("/environments/connection", environments_connection, methods=["POST"]),
             Route("/environments/create", environments_create, methods=["POST"]),
             Route("/environments/delete", environments_delete, methods=["POST"]),
             Route("/environments/gitignore", environments_gitignore, methods=["POST"]),
