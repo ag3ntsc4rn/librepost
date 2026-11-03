@@ -53,6 +53,8 @@ def make_client(root: Path, *, login: bool = True) -> TestClient:
         transport=httpx.MockTransport(echo),
         secret_lookup=lookup,
         secret_store=STORED.__setitem__,
+        secret_exists=lambda ref: ref.removeprefix("keychain/") in STORED,
+        secret_delete=STORED.__delitem__,
     )
     client = TestClient(app, base_url=BASE)
     if login:
@@ -225,3 +227,78 @@ def test_import_errors(workspace: Path) -> None:
     assert "Unrecognised JSON" in client.post("/import", data={"text": "{}"}, headers=ORIGIN).text
     # Like every state-changing endpoint, import refuses cross-origin requests.
     assert client.post("/import", data={"text": "curl https://a.invalid"}).status_code == 403
+
+
+def test_environments_page_and_save(workspace: Path) -> None:
+    STORED.clear()
+    client = make_client(workspace)
+    html = client.get("/environments?env=dev").text
+    assert 'value="base"' in html and "keychain/token" in html and "missing" in html
+
+    response = client.post(
+        "/environments/save",
+        data={
+            "env": "dev",
+            "rows-0-key": "base",
+            "rows-0-value": "https://api.example.invalid",
+            "rows-0-location": "shared",
+            "rows-1-key": "auth",
+            "rows-1-value": "{{secret:keychain/token}}",
+            "rows-1-location": "shared",
+            "rows-1000-key": "apiKey",
+            "rows-1000-value": "fake-ui-api-key",
+            "rows-1000-location": "shared",
+            "rows-1000-secret": "1",
+        },
+        headers=ORIGIN,
+    )
+    assert response.headers["hx-trigger"] == "envs-changed"
+    assert "Stored 1 value(s) in your keychain" in response.text
+    assert STORED == {"dev-apikey": "fake-ui-api-key"}
+    assert "fake-ui-api-key" not in (workspace / "http-client.env.json").read_text()
+    assert "fake-ui-api-key" not in response.text
+
+
+def test_environments_refuse_shared_credential(workspace: Path) -> None:
+    response = make_client(workspace).post(
+        "/environments/save",
+        data={
+            "env": "dev",
+            "rows-0-key": "password",
+            "rows-0-value": "hunter2hunter2",
+            "rows-0-location": "shared",
+        },
+        headers=ORIGIN,
+    )
+    assert "looks like a credential" in response.text
+    assert "hunter2" not in (workspace / "http-client.env.json").read_text()
+    assert 'value="hunter2hunter2"' in response.text  # what was typed is kept on screen
+
+
+def test_environments_create_delete_and_options(workspace: Path) -> None:
+    client = make_client(workspace)
+    client.post("/environments/create", data={"name": "prod"}, headers=ORIGIN)
+    assert '<option value="prod">' in client.get("/env-options").text
+    client.post("/environments/delete", data={"env": "prod"}, headers=ORIGIN)
+    assert "prod" not in client.get("/env-options").text
+
+
+def test_secrets_page(workspace: Path) -> None:
+    STORED.clear()
+    client = make_client(workspace)
+    html = client.get("/secrets").text
+    assert "keychain/token" in html and "missing" in html and "http-client.env.json" in html
+
+    html = client.post(
+        "/secrets/set", data={"name": "token", "value": "fake-v"}, headers=ORIGIN
+    ).text
+    assert "Stored token" in html and STORED == {"token": "fake-v"} and "fake-v" not in html
+    assert ">set<" in html
+
+    html = client.post("/secrets/delete", data={"name": "token"}, headers=ORIGIN).text
+    assert "Deleted token" in html and STORED == {}
+    assert (
+        "Invalid secret name"
+        in client.post("/secrets/set", data={"name": "../x", "value": "v"}, headers=ORIGIN).text
+    )
+    assert client.post("/secrets/set", data={"name": "t", "value": "v"}).status_code == 403

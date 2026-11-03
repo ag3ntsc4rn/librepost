@@ -49,6 +49,14 @@ def lookup(ref: str) -> str:
     return str(value)
 
 
+def exists(ref: str) -> bool:
+    """Whether a reference resolves, without returning the value."""
+    try:
+        return lookup(ref) != ""
+    except SecretError:
+        return False
+
+
 def store(key: str, value: str) -> None:
     check_key(key)
     _keyring_call("set_password", key, value)

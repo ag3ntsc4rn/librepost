@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Environments** screen: edit variables per environment (and `$shared`), choose whether each
+  is shared (committed) or private (this machine), tick 🔒 to move a value into the keychain,
+  and add or delete environments. Credential-looking values can't be saved as shared, the
+  private file is created readable only by you, and a warning (with a fix) appears if it
+  isn't gitignored.
+- **Secrets** screen: every `{{secret:...}}` reference in the workspace, where it's used and
+  whether it's set; set, replace or delete keychain values. Values are never shown.
+
 ## [0.2.0] - 2026-11-03
 
 ### Added

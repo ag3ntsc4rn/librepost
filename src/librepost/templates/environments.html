@@ -1,0 +1,94 @@
+<div class="manage">
+  <h2>Environments</h2>
+  {% if status %}<p class="ok">{{ status }}</p>{% endif %}
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  {% if tracked %}
+  <div class="error">
+    <code>http-client.private.env.json</code> is not gitignored, so its values could be committed.
+    <button type="button" class="ghost" hx-post="/environments/gitignore?env={{ current | urlencode }}" hx-target="#main">Add it to .gitignore</button>
+  </div>
+  {% endif %}
+
+  {% if names %}
+  <nav class="env-tabs" aria-label="Environments">
+    {% for name in names %}
+    <a href="#" class="env-tab {% if name == current %}active{% endif %}" hx-get="/environments?env={{ name | urlencode }}" hx-target="#main">
+      {{ "shared by all" if name == shared else name }}
+    </a>
+    {% endfor %}
+    <form class="env-new" hx-post="/environments/create" hx-target="#main">
+      <input name="name" placeholder="new environment" required aria-label="New environment name">
+      <button type="submit" class="ghost">Add</button>
+    </form>
+  </nav>
+
+  <form class="env-form" hx-post="/environments/save" hx-target="#main" autocomplete="off">
+    <input type="hidden" name="env" value="{{ current }}">
+    <p class="muted small">
+      {% if current == shared %}These values apply in every environment, unless an environment sets the same name.{% endif %}
+      <strong>Shared</strong> values are saved in <code>http-client.env.json</code>, which you commit.
+      <strong>Private</strong> values are saved in <code>http-client.private.env.json</code>, on this machine only.
+      Tick <strong>🔒</strong> to keep a value in your OS keychain instead.
+    </p>
+    <table class="env-table">
+      <thead>
+        <tr><th>Name</th><th>Value</th><th>Stored in</th><th title="Keep the value in your OS keychain">🔒</th><th></th></tr>
+      </thead>
+      <tbody id="env-rows">
+        {% for row in (draft if draft is defined else rows) %}
+        {% set i = loop.index0 %}
+        <tr>
+          <td><input name="rows-{{ i }}-key" value="{{ row.key }}" spellcheck="false" aria-label="Variable name"></td>
+          <td>
+            {% if row.secret_ref %}
+            <input type="hidden" name="rows-{{ i }}-value" value="{{ row.value }}">
+            <span class="secret-ref">
+              <code>{{ row.secret_ref }}</code>
+              {% if secret_set.get(row.secret_ref) %}<span class="badge ok">set</span>
+              {% else %}<a href="#" class="badge warn" hx-get="/secrets" hx-target="#main">missing: set it</a>{% endif %}
+            </span>
+            {% else %}
+            <input class="env-value" name="rows-{{ i }}-value" value="{{ row.value }}" spellcheck="false" aria-label="Value" {% if row.secret or row.sensitive %}type="password"{% endif %}>
+            {% endif %}
+          </td>
+          <td>
+            <select name="rows-{{ i }}-location" aria-label="Stored in">
+              <option value="shared" {% if row.location == "shared" %}selected{% endif %}>Shared</option>
+              <option value="private" {% if row.location == "private" %}selected{% endif %}>Private</option>
+            </select>
+          </td>
+          <td>
+            {% if not row.secret_ref %}
+            <input type="checkbox" class="env-secret" name="rows-{{ i }}-secret" value="1" {% if row.secret %}checked{% endif %} aria-label="Keep in keychain">
+            {% endif %}
+          </td>
+          <td><button type="button" class="ghost danger remove-row" title="Remove">✕</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <template id="env-row-template">
+      <tr>
+        <td><input name="rows-__i__-key" spellcheck="false" aria-label="Variable name"></td>
+        <td><input class="env-value" name="rows-__i__-value" spellcheck="false" aria-label="Value"></td>
+        <td>
+          <select name="rows-__i__-location" aria-label="Stored in">
+            <option value="shared">Shared</option>
+            <option value="private">Private</option>
+          </select>
+        </td>
+        <td><input type="checkbox" class="env-secret" name="rows-__i__-secret" value="1" aria-label="Keep in keychain"></td>
+        <td><button type="button" class="ghost danger remove-row" title="Remove">✕</button></td>
+      </tr>
+    </template>
+    <div class="env-actions">
+      <button type="button" class="ghost" id="add-row">+ Variable</button>
+      <span class="spacer"></span>
+      {% if current != shared %}
+      <button type="button" class="ghost danger" hx-post="/environments/delete" hx-target="#main" hx-confirm="Delete the {{ current }} environment from both files?">Delete environment</button>
+      {% endif %}
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+  {% endif %}
+</div>

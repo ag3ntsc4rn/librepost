@@ -144,7 +144,7 @@ def _candidates(paths: list[Path]) -> list[Path]:
     return found
 
 
-def _git_ignored(path: Path) -> bool | None:
+def git_ignored(path: Path) -> bool | None:
     """True/False if git says whether the file is ignored; None outside a repo or without git."""
     git = shutil.which("git")
     if git is None:
@@ -175,7 +175,7 @@ def scan(paths: list[Path], display_root: Path | None = None) -> list[Leak]:
             rel = str(path)
         if path.name == PRIVATE_FILE:
             # The private file is supposed to hold secrets, but must never be committed.
-            if _git_ignored(path) is False:
+            if git_ignored(path) is False:
                 leaks.append(
                     Leak(rel, 1, "private-env-tracked", f"{PRIVATE_FILE} is not gitignored.")
                 )
