@@ -25,6 +25,8 @@ class Prepared:
     headers: list[tuple[str, str]]
     body: str
     renderer: Renderer
+    # The request's @capture/@expect lines with placeholders filled in.
+    checks: list[str] = field(default_factory=list)
 
     def masked(self) -> str:
         """The request as text, with secret values hidden."""
@@ -68,6 +70,7 @@ def prepare(
     url = renderer.render(request.url)
     headers = [(renderer.render(k), renderer.render(v)) for k, v in request.headers]
     body = renderer.render(request.body)
+    rendered_checks = [renderer.render(line) for line in request.checks]
     renderer.check()
     if "://" not in url:
         url = "http://" + url
@@ -77,7 +80,7 @@ def prepare(
     if any(k.lower() == "content-type" and "multipart/" in v.lower() for k, v in headers):
         # Multipart needs CRLF line breaks; .http files are saved with LF.
         body = re.sub(r"\r?\n", "\r\n", body)
-    return Prepared(request.method, url, headers, body, renderer)
+    return Prepared(request.method, url, headers, body, renderer, rendered_checks)
 
 
 _BASIC_PAIR = re.compile(r"^(basic)\s+(\S+)\s+(.+)$", re.IGNORECASE)

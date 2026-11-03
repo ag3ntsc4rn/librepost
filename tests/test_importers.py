@@ -197,7 +197,7 @@ def test_postman_layout_and_requests() -> None:
     assert reqs["Search"].url == "{{baseUrl}}/search?api_key={{secret:keychain/acme-api-api-key}}"
 
     warnings = " ".join(result.warnings)
-    assert "1 pre-request/test script" in warnings
+    assert "Skipped 1 script(s)" in warnings
     assert "$randomFirstName" in warnings
     assert "file field 'file' skipped" in warnings
 

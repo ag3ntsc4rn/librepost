@@ -139,10 +139,10 @@ def run(
 
     root = _workspace_root(file)
     try:
-        plan = checks.parse(request.checks)
         variables = dict(httpfile.variables)
         variables.update(environments.variables(root, env))
         prepared = runner.prepare(request, variables)
+        plan = checks.parse(prepared.checks)
     except (EnvFileError, TemplateError, SecretError, HttpFileError, checks.CheckError) as exc:
         err.print(f"[red]{exc}[/]")
         raise typer.Exit(2) from None
@@ -183,13 +183,78 @@ def _print_outcome(outcome: checks.Outcome, renderer: Renderer) -> None:
     renderer.secret_values.update(outcome.values[n] for n in outcome.secret if outcome.values[n])
     for check in outcome.results:
         if check.passed:
-            err.print(f"[green]✓[/] {check.text.removeprefix('@expect ')}")
+            err.print(f"[green]✓[/] {renderer.mask(check.text).removeprefix('@expect ')}")
         else:
             err.print(
-                f"[red]✗ {check.text.removeprefix('@expect ')}[/] [dim]got {renderer.mask(check.actual)}[/]"
+                f"[red]✗ {renderer.mask(check.text).removeprefix('@expect ')}[/] [dim]got {renderer.mask(check.actual)}[/]"
             )
     for name in outcome.missing:
         err.print(f"[yellow]![/] nothing found to capture for {name}")
+
+
+@app.command()
+def test(
+    paths: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Folders or .http files to run (default: current folder)."),
+    ] = None,
+    env: Annotated[str | None, typer.Option("--env", "-e", help="Environment to use.")] = None,
+    junit: Annotated[
+        Path | None, typer.Option("--junit", help="Write results as JUnit XML for CI.")
+    ] = None,
+    bail: Annotated[bool, typer.Option("--bail", help="Stop at the first failure.")] = False,
+    insecure: Annotated[
+        bool, typer.Option("--insecure", "-k", help="Don't verify TLS certificates.")
+    ] = False,
+    timeout: Annotated[float, typer.Option(help="Timeout per request, in seconds.")] = 30.0,
+) -> None:
+    """Run every request in order, carrying captured values along, and report the checks.
+
+    Exits with status 1 if a request fails (a check failed, or it couldn't be sent)."""
+    from . import collection
+    from .workspace import WorkspaceError
+
+    targets = paths or [Path(".")]
+    first = targets[0]
+    root = _workspace_root(first / "x.http" if first.is_dir() else first)
+
+    def show(step: collection.Step) -> None:
+        mark = "[green]✓[/]" if step.passed else "[red]✗[/]"
+        detail = (
+            f"{step.status}, {step.elapsed_ms:.0f} ms" if step.status is not None else "not sent"
+        )
+        out.print(f"{mark} {step.method} [bold]{step.name}[/] [dim]{step.file} · {detail}[/]")
+        for check in step.results:
+            if not check.passed:
+                out.print(
+                    f"    [red]✗ {check.text.removeprefix('@expect ')}[/] [dim]got {check.actual}[/]"
+                )
+        for name in step.missing:
+            out.print(f"    [yellow]![/] nothing found to capture for {name}")
+        if step.error:
+            out.print(f"    [red]{step.error}[/]")
+
+    try:
+        result = collection.run(
+            targets, root, env, bail=bail, timeout=timeout, verify=not insecure, on_step=show
+        )
+    except (EnvFileError, WorkspaceError, OSError, UnicodeDecodeError) as exc:
+        err.print(f"[red]{exc}[/]")
+        raise typer.Exit(2) from None
+
+    if junit:
+        junit.write_text(collection.junit(result), encoding="utf-8")
+    failed = len(result.failed)
+    colour = "red" if failed else "green"
+    out.print(
+        f"\n[bold {colour}]{len(result.steps) - failed} passed, {failed} failed[/] "
+        f"[dim]· {result.check_count - result.checks_failed}/{result.check_count} checks · "
+        f"{result.seconds:.1f} s[/]"
+    )
+    if junit:
+        out.print(f"[dim]JUnit report: {junit}[/]")
+    if failed:
+        raise typer.Exit(1)
 
 
 def _workspace_root(file: Path) -> Path:

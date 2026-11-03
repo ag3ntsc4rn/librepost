@@ -98,8 +98,11 @@ and placeholders like "Your API key" are not treated as real values.
 | curl | requests appended to `imported.http` (`--file` to change); handles bash `$'...'` quoting from browsers |
 
 Imports never overwrite: a clashing file gets a numbered name, and existing environment
-values are kept. Use `--dry-run` to preview. Not imported yet: pre-request and test scripts,
-file uploads, OAuth 1.0 and other signed auth schemes; each is reported as a warning.
+values are kept. Use `--dry-run` to preview. Common Postman test-script statements (setting a variable from the response,
+checking the status, a header, the response time or a JSON value) become `@capture` and
+`@expect` lines; collection and folder scripts apply to every request inside them. Not
+imported yet: pre-request scripts, other script code, file uploads, OAuth 1.0 and other
+signed auth schemes; each is reported as a warning.
 
 ## Requests
 
@@ -160,6 +163,33 @@ Authorization: Bearer {{token}}
   `$.items[0].id` or `$.items.length`, and `regex "pattern"` (first group) for HTML or text.
 - Operators: `==` `!=` `<` `<=` `>` `>=` `contains` `!contains` `matches` `exists` `!exists`.
   Values are JSON (`200`, `"text"`, `true`, `null`) or a bare word.
+
+## Run in CI
+
+`librepost test` runs every request in order (files sorted by path, requests in file order),
+carrying captured values along, and exits with status 1 if a check fails or a request can't
+be sent. It replaces Newman for collections kept as `.http` files.
+
+```bash
+librepost test requests/ --env ci --junit report.xml
+librepost test requests/auth.http --bail      # stop at the first failure
+```
+
+```yaml
+# .github/workflows/api-tests.yml
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx librepost-app test requests/ --env ci --junit report.xml
+        env:
+          API_TOKEN: ${{ secrets.API_TOKEN }}   # referenced as {{secret:env/API_TOKEN}}
+```
+
+Secrets and captured credentials are masked in the output and never written to the report.
+Use `{{secret:env/NAME}}` references in CI, where there's no keychain.
 
 ## Environments
 
