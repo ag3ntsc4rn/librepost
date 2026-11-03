@@ -166,6 +166,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 def mtls_server(certs: Certs) -> Iterator[int]:
     """An HTTPS server on 127.0.0.1 that requires a client certificate from the test CA."""
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(certs.server_cert, certs.server_key)
     context.load_verify_locations(certs.ca)
     context.verify_mode = ssl.CERT_REQUIRED
