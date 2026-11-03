@@ -82,6 +82,8 @@ librepost import "curl -X POST https://api.example.com/items -d name=x"
 pbpaste | librepost import -                         # "Copy as cURL" from your browser
 ```
 
+In the UI, click **Import…** to paste a curl command or JSON, or to upload an export.
+
 **Credentials never land in files.** Literal tokens, passwords, API keys and cookies are
 replaced with `{{secret:keychain/...}}` references. Add `--save-secrets` to put the values
 found in the import straight into your keychain; otherwise librepost prints the
@@ -198,7 +200,6 @@ Python 3.11+ (uv fetches one for you if needed) and a web browser. Git is option
 
 ## Roadmap
 
-- Import from the UI (paste a curl command, upload a collection)
 - A native window (`pip install librepost-app[desktop]`)
 - Git status and commit from the UI
 - Client certificates (mTLS), proxy settings, request history and response diffs

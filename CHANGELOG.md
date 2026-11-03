@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Authorization: Basic user password` (the JetBrains form) is base64-encoded at send time,
   so the password can be a secret reference.
 - Multipart bodies are sent with CRLF line breaks.
+- **Import…** in the UI: paste curl commands or Postman/HAR JSON, or upload a file. Found
+  credentials are saved to the keychain unless you untick the box, and the pasted text is
+  cleared after a successful import.
 
 ### Changed
 

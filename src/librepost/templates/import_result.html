@@ -1,0 +1,39 @@
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+{% if result %}
+<div class="import-summary">
+  <p class="ok">Imported {{ result.request_count }} request(s).</p>
+  <ul>
+    {% for rel in report.created %}<li>Created <code>{{ rel }}</code></li>{% endfor %}
+    {% for rel in report.appended %}<li>Added to <code>{{ rel }}</code></li>{% endfor %}
+    {% if report.env_added %}<li>Added {{ report.env_added | length }} variable(s) to <code>http-client.env.json</code></li>{% endif %}
+    {% for key in report.env_kept %}<li class="muted">Kept your existing value for <code>{{ key }}</code></li>{% endfor %}
+  </ul>
+  {% if result.secrets %}
+  <h3>Credentials</h3>
+  <p class="muted small">These were replaced with keychain references.</p>
+  <table class="headers">
+    {% for secret in result.secrets %}
+    <tr>
+      <th>{{ secret.name }}</th>
+      <td>
+        {% if secret.name in saved and not saved[secret.name] %}<span class="ok">saved to keychain</span>
+        {% elif secret.name in saved %}<span class="error-text">not saved: {{ saved[secret.name] }}</span>
+        {% elif not secret.value %}<span class="muted">empty in the export: run <code>librepost secret set {{ secret.name }}</code></span>
+        {% else %}<span class="muted">run <code>librepost secret set {{ secret.name }}</code></span>
+        {% endif %}
+        <span class="muted small">({{ secret.source }})</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if result.warnings %}
+  <h3>Warnings</h3>
+  <ul class="warnings">
+    {% for warning in result.warnings %}<li>{{ warning }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}

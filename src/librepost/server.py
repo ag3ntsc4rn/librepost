@@ -34,7 +34,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from . import __version__, environments, runner, secretstore
+from . import __version__, environments, importers, runner, secretstore
 from .environments import EnvFileError
 from .httpfile import METHODS, HttpFileError, Request, format_headers, parse_headers, validate
 from .secretstore import SecretError
@@ -57,6 +57,7 @@ SECURITY_HEADERS = {
 }
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 MAX_DISPLAY = 2 * 1024 * 1024
+MAX_IMPORT = 50 * 1024 * 1024
 
 NEW_REQUEST = Request(method="GET", url="https://example.com", name="new-request")
 
@@ -124,6 +125,7 @@ def create_app(
     token: str,
     transport: httpx.BaseTransport | None = None,
     secret_lookup: Callable[[str], str] = secretstore.lookup,
+    secret_store: Callable[[str, str], None] = secretstore.store,
 ) -> ASGIApp:
     workspace = Workspace(root)
     jinja = Environment(
@@ -273,6 +275,52 @@ def create_app(
             headers=[(k, prepared.renderer.mask(v)) for k, v in result.headers],
         )
 
+    async def import_form(request: HttpRequest) -> Response:
+        return render("import.html")
+
+    async def import_(request: HttpRequest) -> Response:
+        form = await request.form(max_part_size=MAX_IMPORT)
+        text = str(form.get("text", "")).strip()
+        upload = form.get("upload")
+        if upload is not None and not isinstance(upload, str) and upload.filename:
+            data = await upload.read(MAX_IMPORT + 1)
+            if len(data) > MAX_IMPORT:
+                return render("import_result.html", error="The file is larger than 50 MB.")
+            try:
+                text = data.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                return render("import_result.html", error="The file isn't UTF-8 text.")
+        if not text:
+            return render("import_result.html", error="Paste something or choose a file first.")
+        target = str(form.get("file", "")).strip() or "imported.http"
+        if not target.endswith((".http", ".rest")):
+            target += ".http"
+        try:
+            result = await run_in_threadpool(
+                importers.convert, text, None, name=target, everything=bool(form.get("all"))
+            )
+            report = importers.write(result, workspace.root, append=result.files.keys() == {target})
+        except (importers.ImporterError, WorkspaceError, HttpFileError, OSError, ValueError) as exc:
+            return render("import_result.html", error=str(exc))
+
+        saved: dict[str, str] = {}
+        if form.get("save_secrets"):
+            for secret in result.secrets:
+                if not secret.value:
+                    continue
+                try:
+                    await run_in_threadpool(secret_store, secret.name, secret.value)
+                    saved[secret.name] = ""
+                except SecretError as exc:
+                    saved[secret.name] = str(exc)
+        return render(
+            "import_result.html",
+            result=result,
+            report=report,
+            saved=saved,
+            trigger="tree-changed",
+        )
+
     static = Path(__file__).parent / "static"
     app = Starlette(
         routes=[
@@ -284,6 +332,8 @@ def create_app(
             Route("/save", save, methods=["POST"]),
             Route("/delete", delete, methods=["POST"]),
             Route("/send", send, methods=["POST"]),
+            Route("/import", import_form),
+            Route("/import", import_, methods=["POST"]),
             Mount("/static", StaticFiles(directory=static), name="static"),
         ],
     )
