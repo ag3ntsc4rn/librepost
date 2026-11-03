@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Checks and chaining** without scripts: `# @capture name = …`, `# @capture-secret` and
+  `# @expect …` lines above a request. Captured values are available to later requests as
+  `{{name}}`; secret captures, and captures named like credentials, are masked everywhere,
+  including in the response they came from. Subjects: `status`, `duration`, `body`,
+  `header Name`, JSON paths (`$.a.b[0]`, `.length`) and `regex "…"`.
+- A **Checks** tab in the editor, and ✓/✗ results plus captured values under each response,
+  with a button to clear captured values.
+- `librepost run` prints check results and exits with status 1 when a check fails.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added

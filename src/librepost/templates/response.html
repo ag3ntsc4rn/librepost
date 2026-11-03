@@ -12,6 +12,29 @@
   {% endif %}
 </div>
 {% endif %}
+{% if results %}
+<ul class="check-results">
+  {% for text, passed, actual in results %}
+  <li class="{{ 'pass' if passed else 'fail' }}">
+    <span class="mark">{{ "✓" if passed else "✗" }}</span>
+    <code>{{ text | replace("@expect ", "") }}</code>
+    {% if not passed %}<span class="muted small">got {{ actual }}</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% if outcome and outcome.missing %}
+<p class="warn-text small">Nothing found to capture for: {{ outcome.missing | join(", ") }}</p>
+{% endif %}
+{% if captured %}
+<div class="captured" id="captured">
+  <span class="muted small">Captured, used by later requests:</span>
+  {% for name, val in captured %}
+  <span class="captured-item {% if name in new_captures %}new{% endif %}"><code>{{ name }}</code> = <code>{{ val }}</code></span>
+  {% endfor %}
+  <button type="button" class="ghost small-button" hx-post="/captured/clear" hx-target="#captured" hx-swap="outerHTML">Clear</button>
+</div>
+{% endif %}
 {% if result or sent %}
 <div class="tabs" data-tabs>
   <div class="tab-list" role="tablist">

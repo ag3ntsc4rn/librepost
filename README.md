@@ -126,6 +126,41 @@ GET {{baseUrl}}/{{apiVersion}}/users?page=1
 - Built-in values: `{{$uuid}}`, `{{$timestamp}}`, `{{$isoTimestamp}}`, `{{$randomInt}}`.
 - Response handler scripts (`> {% ... %}`) are kept intact when you save, but are not run.
 
+## Checks and chaining
+
+Test responses and pass values between requests, without scripts. Write the lines above the
+request (or in the editor's **Checks** tab); other `.http` tools treat them as comments.
+
+```http
+# @capture token = $.access_token
+# @capture userId = $.user.id
+# @expect status == 200
+# @expect $.user.roles contains admin
+# @name login
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{"user": "ada", "password": "{{secret:keychain/ada-password}}"}
+
+###
+
+# @expect status == 200
+# @expect duration < 500
+# @name profile
+GET {{baseUrl}}/users/{{userId}}
+Authorization: Bearer {{token}}
+```
+
+- `@capture name = …` keeps a value for later requests as `{{name}}`, until you clear it or
+  stop librepost. `@capture-secret` masks it everywhere, and so does any capture named like
+  a credential (`token`, `password`, `apiKey`, …).
+- `@expect <subject> <operator> <value>` shows ✓ or ✗ under the response; `librepost run`
+  prints them and exits with status 1 if one fails.
+- Subjects: `status`, `duration` (ms), `body`, `header Name`, JSON paths like
+  `$.items[0].id` or `$.items.length`, and `regex "pattern"` (first group) for HTML or text.
+- Operators: `==` `!=` `<` `<=` `>` `>=` `contains` `!contains` `matches` `exists` `!exists`.
+  Values are JSON (`200`, `"text"`, `true`, `null`) or a bare word.
+
 ## Environments
 
 Same format as the JetBrains HTTP Client:

@@ -388,3 +388,62 @@ def test_tree_has_add_button_per_file(workspace: Path) -> None:
     assert 'hx-vals=\'{"file": "api.http"}\'' in html
     response = client.post("/requests", data={"file": "api.http"}, headers=ORIGIN)
     assert 'name="index" value="1"' in response.text
+
+
+def test_checks_and_captures_flow(workspace: Path) -> None:
+    client = make_client(workspace)
+    # Save a request with checks; they're written to the file.
+    client.post(
+        "/save",
+        data={
+            "file": "api.http",
+            "index": "0",
+            "name": "me",
+            "method": "GET",
+            "url": "{{base}}/me",
+            "checks": "expect status == 200\n@capture method = $.method\n@capture-secret echoed = $.url\n@expect $.method == POST",
+        },
+        headers=ORIGIN,
+    )
+    text = (workspace / "api.http").read_text()
+    assert "# @expect status == 200\n# @capture method = $.method" in text
+
+    response = client.post(
+        "/send",
+        data={
+            "file": "api.http",
+            "env": "dev",
+            "method": "GET",
+            "url": "{{base}}/me",
+            "checks": "@expect status == 200\n@capture method = $.method\n@capture-secret echoed = $.url\n@expect $.method == POST",
+        },
+        headers=ORIGIN,
+    )
+    html = response.text
+    assert html.count('class="pass"') == 1 and html.count('class="fail"') == 1
+    assert "got GET" in html
+    assert "<code>method</code> = <code>GET</code>" in html
+    # The secret capture is masked, including in the body it came from.
+    assert "<code>echoed</code> = <code>••••••</code>" in html
+    assert "https://api.example.invalid/me" not in html.split("Request sent")[0]
+
+    # A later request can use the captured value.
+    response = client.post(
+        "/send", data={"method": "POST", "url": "https://x.invalid/{{method}}"}, headers=ORIGIN
+    )
+    assert "https://x.invalid/GET" in response.text
+
+    client.post("/captured/clear", headers=ORIGIN)
+    response = client.post(
+        "/send", data={"method": "POST", "url": "https://x.invalid/{{method}}"}, headers=ORIGIN
+    )
+    assert "Undefined variable(s): method" in response.text
+
+
+def test_bad_check_line_is_reported(workspace: Path) -> None:
+    response = make_client(workspace).post(
+        "/send",
+        data={"method": "GET", "url": "https://x.invalid", "checks": "@expect nonsense == 1"},
+        headers=ORIGIN,
+    )
+    assert "unknown subject" in response.text
