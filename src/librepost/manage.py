@@ -76,12 +76,10 @@ def _write(path: Path, data: dict[str, Any], *, private: bool) -> None:
     text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".librepost-", suffix=".tmp")
     try:
-        if private:
-            os.chmod(tmp, 0o600)
-        elif path.exists():
+        # mkstemp creates the file readable by the owner only, which the private file
+        # needs. An existing shared file keeps its mode.
+        if not private and path.exists():
             os.chmod(tmp, path.stat().st_mode & 0o777)
-        else:
-            os.chmod(tmp, 0o644)
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         os.replace(tmp, path)
