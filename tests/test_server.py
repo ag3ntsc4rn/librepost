@@ -318,3 +318,73 @@ def test_secrets_page_lists_unreferenced_secrets(workspace: Path) -> None:
     html = client.get("/secrets").text
     assert html.count("<code>keychain/token</code>") == 1
     assert html.count("<code>keychain/github</code>") == 1
+
+
+def test_scratch_request_save_as_new_file(workspace: Path) -> None:
+    client = make_client(workspace)
+    html = client.get("/scratch").text
+    assert "Not saved yet" in html and 'name="target"' in html
+    assert '<option value="api.http">' in html  # existing files are suggested
+    # A scratch request can be sent before it's saved.
+    sent = client.post(
+        "/send", data={"method": "GET", "url": "https://x.invalid/ping"}, headers=ORIGIN
+    )
+    assert "200 OK" in sent.text
+
+    response = client.post(
+        "/save-as",
+        data={
+            "target": "scratch/ping",
+            "name": "ping",
+            "method": "GET",
+            "url": "https://x.invalid/ping",
+        },
+        headers=ORIGIN,
+    )
+    assert response.headers["hx-trigger"] == "tree-changed"
+    assert "Saved to scratch/ping.http" in response.text
+    assert (
+        'hx-swap-oob="true"' in response.text
+        and 'name="file" value="scratch/ping.http"' in response.text
+    )
+    assert (
+        workspace / "scratch/ping.http"
+    ).read_text() == "# @name ping\nGET https://x.invalid/ping\n"
+
+
+def test_scratch_request_save_as_appends(workspace: Path) -> None:
+    response = make_client(workspace).post(
+        "/save-as",
+        data={"target": "api.http", "method": "POST", "url": "https://x.invalid/new"},
+        headers=ORIGIN,
+    )
+    assert 'name="index" value="1"' in response.text
+    text = (workspace / "api.http").read_text()
+    assert "# @name me" in text and "POST https://x.invalid/new" in text
+
+
+def test_save_as_validates(workspace: Path) -> None:
+    client = make_client(workspace)
+    assert (
+        "The URL is empty"
+        in client.post(
+            "/save-as", data={"target": "a.http", "method": "GET", "url": ""}, headers=ORIGIN
+        ).text
+    )
+    assert (
+        "Invalid file path"
+        in client.post(
+            "/save-as",
+            data={"target": "../a.http", "method": "GET", "url": "https://x.invalid"},
+            headers=ORIGIN,
+        ).text
+    )
+    assert not (workspace.parent / "a.http").exists()
+
+
+def test_tree_has_add_button_per_file(workspace: Path) -> None:
+    client = make_client(workspace)
+    html = client.get("/tree").text
+    assert 'hx-vals=\'{"file": "api.http"}\'' in html
+    response = client.post("/requests", data={"file": "api.http"}, headers=ORIGIN)
+    assert 'name="index" value="1"' in response.text

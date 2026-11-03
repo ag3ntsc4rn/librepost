@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **New request** button: a blank editor you can send straight away, without picking a file
+  first. Choose where it goes when you save (existing files are suggested; a new name creates
+  the file), and the response stays on screen.
+- A **+** next to each file in the sidebar adds a request to that file.
+
 ## [0.3.1] - 2026-11-03
 
 ### Fixed

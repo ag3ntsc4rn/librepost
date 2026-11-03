@@ -1,15 +1,8 @@
 <form id="editor" class="editor" autocomplete="off">
-  <input type="hidden" name="file" value="{{ file }}">
-  <input type="hidden" name="index" value="{{ index }}">
   <div class="editor-head">
     <input class="name-input" name="name" value="{{ request.name }}" placeholder="request name" aria-label="Request name">
-    <span class="file-path" title="{{ file }}">{{ file }}</span>
+    {% include "editor_meta.html" %}
     <div id="status" class="status-msg" role="status">{% if status %}{% include "status.html" %}{% endif %}</div>
-    <div class="actions">
-      <button type="button" class="ghost" hx-post="/requests" hx-target="#main" title="Add another request to this file">+ Request</button>
-      <button type="button" class="ghost danger" hx-post="/delete" hx-target="#main" hx-confirm="Delete this request from {{ file }}?">Delete</button>
-      <button type="button" id="save" hx-post="/save" hx-target="#status">Save</button>
-    </div>
   </div>
   <div class="request-line">
     <select name="method" aria-label="Method">

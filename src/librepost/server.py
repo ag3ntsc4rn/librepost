@@ -150,7 +150,7 @@ def create_app(
     def error(message: str) -> HTMLResponse:
         return render("error.html", message=message)
 
-    def editor(rel: str, index: int, request: Request, **extra: Any) -> HTMLResponse:
+    def editor(rel: str, index: int | str, request: Request, **extra: Any) -> HTMLResponse:
         return render(
             "editor.html",
             file=rel,
@@ -231,6 +231,29 @@ def create_app(
         new = Request(NEW_REQUEST.method, NEW_REQUEST.url, name=NEW_REQUEST.name)
         index = workspace.append(rel, new)
         return editor(rel, index, new, status="Added a request to " + rel, trigger="tree-changed")
+
+    async def scratch(request: HttpRequest) -> Response:
+        return editor("", "", Request(method="GET", url=""), files=workspace.files())
+
+    @guarded
+    async def save_as(request: HttpRequest) -> Response:
+        """Save a scratch request: create the target file, or append if it exists."""
+        form = await request.form()
+        rel = str(form.get("target", "")).strip()
+        if rel and not rel.endswith((".http", ".rest")):
+            rel += ".http"
+        new = form_request(form)
+        if workspace.path(rel).exists():
+            index = workspace.append(rel, new)
+        else:
+            workspace.create(rel, new)
+            index = 0
+        # Swap only the file controls, so the request and its response stay on screen.
+        status = jinja.get_template("status.html").render(message=f"Saved to {rel}")
+        meta = jinja.get_template("editor_meta.html").render(file=rel, index=index, oob=True)
+        response = HTMLResponse(status + meta)
+        response.headers["HX-Trigger"] = "tree-changed"
+        return response
 
     @guarded
     async def save(request: HttpRequest) -> Response:
@@ -477,6 +500,8 @@ def create_app(
             Route("/files", create_file, methods=["POST"]),
             Route("/requests", add_request, methods=["POST"]),
             Route("/save", save, methods=["POST"]),
+            Route("/scratch", scratch),
+            Route("/save-as", save_as, methods=["POST"]),
             Route("/delete", delete, methods=["POST"]),
             Route("/send", send, methods=["POST"]),
             Route("/import", import_form),
