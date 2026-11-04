@@ -2,7 +2,7 @@
   <div class="editor-head">
     <input class="name-input" name="name" value="{{ request.name }}" placeholder="request name" aria-label="Request name">
     {% include "editor_meta.html" %}
-    <div id="status" class="status-msg" role="status">{% if status %}{% include "status.html" %}{% endif %}</div>
+    <div id="status" class="status-msg" role="status">{% if status %}{% with message = status %}{% include "status.html" %}{% endwith %}{% endif %}</div>
   </div>
   <div class="request-line">
     <select name="method" aria-label="Method">

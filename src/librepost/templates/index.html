@@ -14,6 +14,7 @@
   <header class="topbar">
     <div class="brand"><img src="/static/icon.svg" alt="" width="20" height="20"> librepost</div>
     <div class="workspace" title="{{ root }}">{{ root }}</div>
+    <div id="git-branch" hx-get="/git/branch" hx-trigger="tree-changed from:body, focus from:window">{% include "git_branch.html" %}</div>
     <label class="env">
       <span>Environment</span>
       <select id="env" name="env" hx-get="/env-options" hx-trigger="envs-changed from:body" hx-swap="innerHTML">
@@ -35,8 +36,10 @@
         <button type="button" class="ghost" hx-get="/import" hx-target="#main">Import…</button>
         <button type="button" class="ghost" hx-get="/environments" hx-target="#main">Environments</button>
         <button type="button" class="ghost" hx-get="/secrets" hx-target="#main">Secrets</button>
+        <button type="button" class="ghost" hx-get="/history" hx-target="#main">History</button>
+        <button type="button" class="ghost" hx-get="/git" hx-target="#main">Changes</button>
       </div>
-      <nav id="tree" hx-get="/tree" hx-trigger="tree-changed from:body">
+      <nav id="tree" hx-get="/tree" hx-trigger="tree-changed from:body, focus from:window">
         {% include "tree.html" %}
       </nav>
     </aside>

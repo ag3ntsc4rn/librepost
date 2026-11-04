@@ -1,0 +1,26 @@
+<div class="manage">
+  <h2>Changes</h2>
+  {% if not git %}
+  <p>This folder isn't in a git repository, or git isn't installed. Run <code>git init</code> here to track your requests.</p>
+  {% else %}
+  <p class="muted">
+    {% if git.branch %}On branch <code>{{ git.branch }}</code>{% else %}Detached at <code>{{ git.commit }}</code>{% endif %}
+    {% if git.upstream %}· tracking <code>{{ git.upstream }}</code>, {{ git.ahead }} ahead, {{ git.behind }} behind{% endif %}.
+    Changes against the last commit, in this folder only. Commit with your usual git tools.
+  </p>
+  {% if git.changes %}
+  <ul class="changes">
+    {% for change in git.changes %}
+    <li>
+      <span class="git-badge g-{{ change.code | replace('!', 'conflict') }}" title="{{ change.label }}">{{ change.code }}</span>
+      <a href="#" hx-get="/git/diff?path={{ change.path | urlencode }}" hx-target="#diff">{{ change.path }}</a>
+      <span class="muted small">{{ change.label }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <div id="diff"><p class="muted small">Pick a file to see its changes.</p></div>
+  {% else %}
+  <p class="ok">Nothing to commit: every file here matches the last commit.</p>
+  {% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,8 @@
+{% if git %}
+<button type="button" class="git-chip" hx-get="/git" hx-target="#main" title="{% if git.branch %}Branch {{ git.branch }}{% else %}Detached at {{ git.commit }}{% endif %}{% if git.upstream %}, tracking {{ git.upstream }}: {{ git.ahead }} ahead, {{ git.behind }} behind{% endif %}. Click to see what changed.">
+  <span class="git-branch-name">⎇ {{ git.branch or git.commit or "no commits" }}</span>
+  {% if git.ahead %}<span class="muted">↑{{ git.ahead }}</span>{% endif %}
+  {% if git.behind %}<span class="muted">↓{{ git.behind }}</span>{% endif %}
+  {% if git.changes %}<span class="git-count">{{ git.changes | length }} changed</span>{% else %}<span class="muted">clean</span>{% endif %}
+</button>
+{% endif %}

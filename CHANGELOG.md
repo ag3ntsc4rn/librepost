@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **History**: requests sent from the UI are listed with status, timing and check results.
+  Open one to see its response again, or open a copy in the editor to send it again. Stored
+  outside the workspace (per-user app data), owner-only, secrets masked, newest 200 per
+  workspace. `librepost ui --no-history` turns it off.
+- **Git status**: the top bar shows the branch, changed-file count and ahead/behind; changed
+  request files get a letter in the sidebar; **Changes** shows each file's diff against the
+  last commit. Read-only, with git's fsmonitor and external diff tools disabled.
+
+### Fixed
+
+- The editor's status notice (for example "Created users.http") wasn't shown.
+
 ## [0.6.0] - 2026-11-03
 
 ### Added

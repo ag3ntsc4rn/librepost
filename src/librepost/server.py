@@ -19,8 +19,10 @@ from __future__ import annotations
 import contextlib
 import json
 import secrets
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -34,7 +36,18 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from . import __version__, checks, connection, environments, importers, manage, runner, secretstore
+from . import (
+    __version__,
+    checks,
+    connection,
+    environments,
+    gitstatus,
+    importers,
+    manage,
+    runner,
+    secretstore,
+)
+from . import history as history_
 from .environments import EnvFileError
 from .httpfile import METHODS, HttpFileError, Request, format_headers, parse_headers, validate
 from .secretstore import SecretError
@@ -129,8 +142,14 @@ def create_app(
     secret_exists: Callable[[str], bool] = secretstore.exists,
     secret_delete: Callable[[str], None] = secretstore.delete,
     secret_names: Callable[[], list[str]] = secretstore.names,
+    keep_history: bool = True,
+    history: history_.History | None = None,
 ) -> ASGIApp:
     workspace = Workspace(root)
+    if keep_history and history is None:
+        history = history_.History(workspace.root)
+    elif not keep_history:
+        history = None
     # Values captured from responses, used by later requests until the server stops.
     captured: dict[str, str] = {}
     captured_secret: set[str] = set()
@@ -160,8 +179,19 @@ def create_app(
             index=index,
             request=request,
             headers=format_headers(request.headers),
+            history_on=history is not None,
             **extra,
         )
+
+    async def remember(entry: history_.Entry) -> list[str]:
+        """Add to history; a failure is reported but never stops the response."""
+        if history is None:
+            return []
+        try:
+            await run_in_threadpool(history.add, entry)
+        except OSError as exc:
+            return [f"Couldn't save this to history: {exc.strerror or exc}"]
+        return []
 
     def form_request(form: FormData) -> Request:
         request = Request(
@@ -206,16 +236,21 @@ def create_app(
             env_error = ""
         except EnvFileError as exc:
             env_names, env_error = [], str(exc)
+        git = await run_in_threadpool(gitstatus.status, workspace.root)
         return render(
             "index.html",
             root=workspace.root,
             entries=workspace.entries(),
+            changes=git.by_path if git else {},
+            git=git,
             env_names=env_names,
             env_error=env_error,
+            history_on=history is not None,
         )
 
     async def tree(request: HttpRequest) -> Response:
-        return render("tree.html", entries=workspace.entries())
+        git = await run_in_threadpool(gitstatus.status, workspace.root)
+        return render("tree.html", entries=workspace.entries(), changes=git.by_path if git else {})
 
     @guarded
     async def open_request(request: HttpRequest) -> Response:
@@ -262,7 +297,9 @@ def create_app(
             index = 0
         # Swap only the file controls, so the request and its response stay on screen.
         status = jinja.get_template("status.html").render(message=f"Saved to {rel}")
-        meta = jinja.get_template("editor_meta.html").render(file=rel, index=index, oob=True)
+        meta = jinja.get_template("editor_meta.html").render(
+            file=rel, index=index, oob=True, request=new, history_on=history is not None
+        )
         response = HTMLResponse(status + meta)
         response.headers["HX-Trigger"] = "tree-changed"
         return response
@@ -309,16 +346,34 @@ def create_app(
         sent = prepared.masked()
         if net.notes:
             sent += "\n\n" + prepared.renderer.mask("\n".join(f"# {n}" for n in net.notes))
+        mask = prepared.renderer
+        entry = history_.Entry(
+            time=time.time(),
+            method=prepared.method,
+            url=mask.mask(prepared.url),
+            env=str(form.get("env", "")),
+            file=rel,
+            name=req.name,
+            request={
+                "method": req.method,
+                "url": mask.mask(req.url),
+                "headers": mask.mask(format_headers(req.headers)),
+                "body": mask.mask(req.body),
+                "checks": [mask.mask(line) for line in req.checks],
+            },
+            sent=sent,
+        )
         try:
             result = await run_in_threadpool(
                 runner.send, prepared, transport=transport, verify=net.verify, proxy=net.proxy
             )
         except httpx.HTTPError as exc:
+            entry.error = mask.mask(f"{type(exc).__name__}: {exc}")
             return render(
                 "response.html",
-                error=prepared.renderer.mask(f"{type(exc).__name__}: {exc}"),
+                error=entry.error,
                 sent=sent,
-                warnings=conn.warnings,
+                warnings=conn.warnings + await remember(entry),
             )
         try:
             plan = checks.parse(prepared.checks)
@@ -331,19 +386,26 @@ def create_app(
                 captured_secret.add(name)
             else:
                 captured_secret.discard(name)
-        mask = prepared.renderer
         mask.secret_values.update(captured[n] for n in captured_secret if captured.get(n))
+        # Responses often echo credentials back (e.g. /headers endpoints).
+        body = mask.mask(_display_body(result))
+        headers = [(k, mask.mask(v)) for k, v in result.headers]
+        results = [(mask.mask(r.text), r.passed, mask.mask(r.actual)) for r in outcome.results]
+        entry.status, entry.reason = result.status, result.reason
+        entry.http_version, entry.final_url = result.http_version, mask.mask(result.url)
+        entry.elapsed_ms, entry.size = result.elapsed_ms, len(result.body)
+        entry.headers, entry.body, entry.results = headers, body, results
+        entry.tls, entry.redirects = result.tls, [mask.mask(u) for u in result.redirects]
         return render(
             "response.html",
             result=result,
-            # Responses often echo credentials back (e.g. /headers endpoints).
-            body=mask.mask(_display_body(result)),
+            body=body,
             size=_human_size(len(result.body)),
             sent=sent,
-            warnings=conn.warnings,
-            headers=[(k, mask.mask(v)) for k, v in result.headers],
+            warnings=conn.warnings + await remember(entry),
+            headers=headers,
             outcome=outcome,
-            results=[(mask.mask(r.text), r.passed, mask.mask(r.actual)) for r in outcome.results],
+            results=results,
             captured=_captured_view(captured, captured_secret),
             new_captures=sorted(outcome.values),
         )
@@ -576,6 +638,126 @@ def create_app(
             return secrets_page(error=str(exc))
         return secrets_page(status=f"Deleted {name} from your keychain.")
 
+    def history_entries(query: str, file: str, name: str) -> list[history_.Entry]:
+        if history is None:
+            return []
+        found = history.entries()
+        if file:
+            found = [e for e in found if e.file == file and (not name or e.name == name)]
+        return [e for e in found if history_.matches(e, query)]
+
+    async def history_view(request: HttpRequest) -> Response:
+        params = request.query_params
+        file, name, query = params.get("file", ""), params.get("name", ""), params.get("q", "")
+        entries = await run_in_threadpool(history_entries, query, file, name)
+        return render(
+            "history.html",
+            entries=entries,
+            file=file,
+            request_name=name,
+            query=query,
+            enabled=history is not None,
+            location=history.path.parent if history else None,
+        )
+
+    async def history_list(request: HttpRequest) -> Response:
+        params = request.query_params
+        entries = await run_in_threadpool(
+            history_entries, params.get("q", ""), params.get("file", ""), params.get("name", "")
+        )
+        return render("history_list.html", entries=entries)
+
+    def history_entry_or_error(request: HttpRequest) -> history_.Entry | HTMLResponse:
+        entry = history.get(request.query_params.get("id", "")) if history else None
+        return entry or error("That history entry is gone. It may have been cleared.")
+
+    async def history_entry(request: HttpRequest) -> Response:
+        entry = await run_in_threadpool(history_entry_or_error, request)
+        if isinstance(entry, HTMLResponse):
+            return entry
+        result = None
+        if entry.status:
+            result = SimpleNamespace(
+                status=entry.status,
+                reason=entry.reason,
+                elapsed_ms=entry.elapsed_ms,
+                http_version=entry.http_version,
+                tls=entry.tls,
+                redirects=entry.redirects,
+                url=entry.final_url,
+            )
+        return render(
+            "history_entry.html",
+            entry=entry,
+            result=result,
+            error=entry.error,
+            body=entry.body,
+            size=_human_size(entry.size),
+            sent=entry.sent,
+            headers=entry.headers,
+            results=entry.results,
+        )
+
+    async def history_open(request: HttpRequest) -> Response:
+        """Open a past request in the editor as a new, unsaved request."""
+        entry = await run_in_threadpool(history_entry_or_error, request)
+        if isinstance(entry, HTMLResponse):
+            return entry
+        saved = entry.request
+        req = Request(
+            method=str(saved.get("method", entry.method)),
+            url=str(saved.get("url", entry.url)),
+            headers=parse_headers(str(saved.get("headers", ""))),
+            body=str(saved.get("body", "")),
+            name=entry.name,
+            checks=[str(line) for line in saved.get("checks", [])],
+        )
+        return editor(
+            "",
+            "",
+            req,
+            files=workspace.files(),
+            target=entry.file or None,
+            status=f"Copied from history ({entry.when}). Save it to keep it.",
+        )
+
+    async def history_clear(request: HttpRequest) -> Response:
+        if history is not None:
+            await run_in_threadpool(history.clear)
+        return render(
+            "history.html",
+            entries=[],
+            file="",
+            request_name="",
+            query="",
+            enabled=history is not None,
+            location=history.path.parent if history else None,
+            cleared=True,
+        )
+
+    async def git_branch(request: HttpRequest) -> Response:
+        git = await run_in_threadpool(gitstatus.status, workspace.root)
+        return render("git_branch.html", git=git)
+
+    async def git_view(request: HttpRequest) -> Response:
+        git = await run_in_threadpool(gitstatus.status, workspace.root)
+        return render(
+            "git.html", git=git, labels=gitstatus.LABELS, http_files=set(workspace.files())
+        )
+
+    async def git_diff(request: HttpRequest) -> Response:
+        path = request.query_params.get("path", "")
+        git = await run_in_threadpool(gitstatus.status, workspace.root)
+        # Only files git reports as changed, so the path can't point anywhere else.
+        change = git.by_path.get(path) if git else None
+        if change is None:
+            return error(f"{path} has no changes.")
+        try:
+            text = await run_in_threadpool(gitstatus.diff, workspace.root, change)
+        except gitstatus.GitError as exc:
+            return error(str(exc))
+        return render("git_diff.html", change=change, lines=_diff_lines(text))
+
     static = Path(__file__).parent / "static"
     app = Starlette(
         routes=[
@@ -602,6 +784,14 @@ def create_app(
             Route("/secrets", secrets_view),
             Route("/secrets/set", secrets_set, methods=["POST"]),
             Route("/secrets/delete", secrets_delete, methods=["POST"]),
+            Route("/history", history_view),
+            Route("/history/list", history_list),
+            Route("/history/entry", history_entry),
+            Route("/history/open", history_open),
+            Route("/history/clear", history_clear, methods=["POST"]),
+            Route("/git", git_view),
+            Route("/git/branch", git_branch),
+            Route("/git/diff", git_diff),
             Mount("/static", StaticFiles(directory=static), name="static"),
         ],
     )
@@ -631,6 +821,24 @@ def _display_body(result: runner.Result) -> str:
     if len(result.body) > MAX_DISPLAY or result.truncated:
         text += "\n\n… (truncated)"
     return text
+
+
+def _diff_lines(text: str) -> list[tuple[str, str]]:
+    """Each line of a unified diff with a CSS class for its kind."""
+    lines = []
+    for line in text.splitlines():
+        if line.startswith(("diff --git", "index ", "--- ", "+++ ", "new file", "deleted file")):
+            kind = "meta"
+        elif line.startswith("@@"):
+            kind = "hunk"
+        elif line.startswith("+"):
+            kind = "add"
+        elif line.startswith("-"):
+            kind = "del"
+        else:
+            kind = ""
+        lines.append((kind, line))
+    return lines
 
 
 def _human_size(size: int) -> str:

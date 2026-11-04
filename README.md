@@ -260,6 +260,25 @@ box that moves a value into the keychain.
 Secret values are masked (`••••••`) in the request preview, response headers and response
 body (APIs often echo credentials back), and in error messages.
 
+## History and git
+
+**History** lists the requests you've sent from the UI, newest first, with status, timing and
+check results. Open one to see its response again, or **Open in editor** to get a copy of the
+request as written (placeholders included) and send it again. The **History** button on a
+saved request shows only its runs.
+
+History is kept on your computer only and outside your workspace, so it can't be committed:
+`~/Library/Application Support/librepost/history` on macOS, `%LOCALAPPDATA%\librepost\history`
+on Windows, `~/.local/state/librepost/history` elsewhere. Secret values are masked before
+anything is written, files are readable by you only, and the newest 200 requests per workspace
+are kept. Turn it off with `librepost ui --no-history`, or clear it from the History screen.
+
+If the workspace is in a git repository, the top bar shows the branch, how many files changed,
+and how far you are ahead of or behind the upstream. Changed request files get a letter in the
+sidebar (**M** modified, **U** untracked, **A** added, **D** deleted, **R** renamed), and
+**Changes** lists them with a diff against the last commit. librepost only reads from git:
+commit with your usual tools.
+
 ## Leak check
 
 ```bash
@@ -303,8 +322,7 @@ Python 3.11+ (uv fetches one for you if needed) and a web browser. Git is option
 ## Roadmap
 
 - A native window (`pip install librepost-app[desktop]`)
-- Git status and commit from the UI
-- Request history and response diffs
+- Commit from the UI, and comparing two responses from history
 - More secret providers: 1Password CLI, HashiCorp Vault, `pass`
 
 ## Contributing

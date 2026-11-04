@@ -73,6 +73,13 @@ def ui(
     open_browser: Annotated[
         bool, typer.Option("--open/--no-open", help="Open the UI in your browser.")
     ] = True,
+    keep_history: Annotated[
+        bool,
+        typer.Option(
+            "--history/--no-history",
+            help="Keep a history of sent requests (masked, outside the folder).",
+        ),
+    ] = True,
 ) -> None:
     """Start the UI on 127.0.0.1 and open it in your browser."""
     import uvicorn
@@ -86,7 +93,7 @@ def ui(
     port = sock.getsockname()[1]
     token = secrets.token_urlsafe(32)
     url = f"http://127.0.0.1:{port}/?token={token}"
-    application = create_app(directory, port=port, token=token)
+    application = create_app(directory, port=port, token=token, keep_history=keep_history)
 
     out.print(f"[bold green]librepost {__version__}[/] serving [bold]{directory.resolve()}[/]")
     out.print(f"Open: [link={url}]{url}[/link]")
