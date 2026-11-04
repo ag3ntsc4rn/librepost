@@ -39,6 +39,10 @@ Homepage = "https://github.com/ag3ntsc4rn/librepost"
 Issues = "https://github.com/ag3ntsc4rn/librepost/issues"
 Changelog = "https://github.com/ag3ntsc4rn/librepost/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+# `librepost ui --window`: the UI in its own window, using the system's web view.
+desktop = ["pywebview>=6.2"]
+
 [project.scripts]
 librepost = "librepost.cli:app"
 # Same command under the PyPI name, so `uvx librepost-app ui` works.
@@ -75,7 +79,7 @@ strict = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["keyring", "keyring.*"]
+module = ["keyring", "keyring.*", "webview", "AppKit", "Foundation"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

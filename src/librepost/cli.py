@@ -73,6 +73,13 @@ def ui(
     open_browser: Annotated[
         bool, typer.Option("--open/--no-open", help="Open the UI in your browser.")
     ] = True,
+    window: Annotated[
+        bool,
+        typer.Option(
+            "--window",
+            help='Open in its own window instead of the browser (needs "librepost-app[desktop]").',
+        ),
+    ] = False,
     keep_history: Annotated[
         bool,
         typer.Option(
@@ -81,14 +88,21 @@ def ui(
         ),
     ] = True,
 ) -> None:
-    """Start the UI on 127.0.0.1 and open it in your browser."""
+    """Start the UI on 127.0.0.1 and open it in your browser, or in its own window."""
     import uvicorn
 
+    from . import desktop
     from .server import create_app
 
     if not directory.is_dir():
         err.print(f"[red]Not a folder:[/] {directory}")
         raise typer.Exit(2)
+    if window:
+        try:
+            desktop.check()
+        except desktop.DesktopUnavailable as exc:
+            err.print(str(exc), markup=False)
+            raise typer.Exit(1) from None
     sock = _bind(port)
     port = sock.getsockname()[1]
     token = secrets.token_urlsafe(32)
@@ -96,6 +110,16 @@ def ui(
     application = create_app(directory, port=port, token=token, keep_history=keep_history)
 
     out.print(f"[bold green]librepost {__version__}[/] serving [bold]{directory.resolve()}[/]")
+    if window:
+        out.print("[dim]Close the window to stop.[/]")
+        try:
+            desktop.run(application, sock, url, f"librepost · {directory.resolve().name}")
+        except desktop.DesktopUnavailable as exc:
+            err.print(f"[red]{exc}[/]")
+            raise typer.Exit(1) from None
+        except KeyboardInterrupt:
+            pass
+        return
     out.print(f"Open: [link={url}]{url}[/link]")
     out.print(
         "[dim]Only this machine can connect, and only with the link above. Ctrl+C stops it.[/]"
