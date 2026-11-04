@@ -385,3 +385,33 @@ table.headers td { word-break: break-all; }
 .conn-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .conn-inline input[type=password] { flex: 1; min-width: 180px; }
 @media (max-width: 720px) { .conn-grid { grid-template-columns: 1fr; } }
+
+/* Git */
+.git-chip { display: flex; gap: 6px; align-items: baseline; font-size: 12px; padding: 3px 10px; background: transparent; white-space: nowrap; }
+.git-branch-name { font-family: var(--mono); }
+.git-count { color: var(--warn); }
+.git-badge { font-family: var(--mono); font-size: 11px; font-weight: 700; width: 1.2em; text-align: center; flex: none; }
+.g-M, .g-R { color: var(--warn); }
+.g-A, .g-U { color: var(--ok); }
+.g-D, .g-conflict { color: var(--danger); }
+.changes { list-style: none; padding: 0; margin: 8px 0 16px; font-size: 13px; }
+.changes li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+.changes a { font-family: var(--mono); color: var(--text); }
+.diff-title { font-size: 14px; margin: 8px 0; }
+pre.diff { white-space: pre; font-size: 12px; }
+.d-add { color: var(--ok); }
+.d-del { color: var(--danger); }
+.d-hunk { color: var(--put); }
+.d-meta { color: var(--muted); font-weight: 600; }
+
+/* History */
+.manage-head { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.manage-head .actions { display: flex; gap: 8px; }
+.manage-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-search { width: 100%; margin: 4px 0 8px; }
+.history { list-style: none; padding: 0; margin: 0; }
+.history-item { display: flex; gap: 10px; align-items: baseline; padding: 6px 4px; border-bottom: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 13px; }
+.history-item:hover { background: var(--code-bg); }
+.history-time { width: 8.5em; flex: none; font-family: var(--mono); }
+.history-url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.fail-text { color: var(--danger); }

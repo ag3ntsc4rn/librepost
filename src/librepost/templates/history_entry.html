@@ -1,0 +1,13 @@
+<div class="manage">
+  <div class="manage-head">
+    <h2><span class="method m-{{ entry.method | lower }}">{{ entry.method }}</span> {{ entry.name or entry.url }}</h2>
+    <div class="actions">
+      <button type="button" class="ghost" hx-get="/history" hx-target="#main">← History</button>
+      <button type="button" class="primary" hx-get="/history/open?id={{ entry.id | urlencode }}" hx-target="#main" title="Open a copy in the editor to change it or send it again">Open in editor</button>
+    </div>
+  </div>
+  <p class="muted small">
+    Sent {{ entry.when }}{% if entry.env %} with <code>{{ entry.env }}</code>{% endif %}{% if entry.file %} from <code>{{ entry.file }}</code>{% endif %} · <span title="{{ entry.url }}">{{ entry.url }}</span>
+  </p>
+  <section class="response">{% include "response.html" %}</section>
+</div>

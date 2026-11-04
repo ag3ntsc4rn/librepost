@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import httpx
-import pytest
 from starlette.testclient import TestClient
 
 from librepost.secretstore import SecretError
@@ -34,19 +33,6 @@ def lookup(ref: str) -> str:
     if ref == "keychain/token":
         return "s3cr3t-value"
     raise SecretError(f"Secret {key!r} is not in the keychain.")
-
-
-@pytest.fixture
-def workspace(tmp_path: Path) -> Path:
-    (tmp_path / "http-client.env.json").write_text(
-        json.dumps(
-            {"dev": {"base": "https://api.example.invalid", "auth": "{{secret:keychain/token}}"}}
-        )
-    )
-    (tmp_path / "api.http").write_text(
-        "# @name me\nGET {{base}}/me\nAuthorization: Bearer {{auth}}\n"
-    )
-    return tmp_path
 
 
 STORED: dict[str, str] = {}

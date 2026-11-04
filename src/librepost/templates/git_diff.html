@@ -1,0 +1,7 @@
+<h3 class="diff-title"><code>{{ change.path }}</code> <span class="muted small">{{ change.label }}</span></h3>
+{% if lines %}
+<pre class="code diff">{% for kind, line in lines %}<span class="d-line {{ 'd-' ~ kind if kind }}">{{ line }}</span>
+{% endfor %}</pre>
+{% else %}
+<p class="muted small">No content changes (only the file mode, or the change is staged as-is).</p>
+{% endif %}

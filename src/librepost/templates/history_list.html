@@ -1,0 +1,18 @@
+{% if entries %}
+<ul class="history">
+  {% for e in entries %}
+  <li>
+    <a href="#" class="history-item" hx-get="/history/entry?id={{ e.id | urlencode }}" hx-target="#main">
+      <span class="muted small history-time">{{ e.when }}</span>
+      {% if e.status %}<span class="status-code s{{ e.status // 100 }}xx">{{ e.status }}</span>{% else %}<span class="status-code s5xx" title="{{ e.error }}">error</span>{% endif %}
+      <span class="method m-{{ e.method | lower }}">{{ e.method }}</span>
+      <span class="history-url" title="{{ e.url }}">{{ e.name or e.url }}</span>
+      {% if e.results %}<span class="small {{ 'fail-text' if e.failed_checks else 'ok' }}">{{ e.results | length - e.failed_checks }}/{{ e.results | length }} checks</span>{% endif %}
+      <span class="muted small">{% if e.status %}{{ "%.0f" | format(e.elapsed_ms) }} ms{% endif %}{% if e.env %} · {{ e.env }}{% endif %}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted small">Nothing here yet. Requests appear after you press Send.</p>
+{% endif %}

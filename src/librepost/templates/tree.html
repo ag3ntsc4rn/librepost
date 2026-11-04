@@ -2,6 +2,10 @@
 <section class="file">
   <div class="file-head">
     <h3 class="file-name" title="{{ entry.path }}">{{ entry.path }}</h3>
+    {% set change = changes.get(entry.path) if changes else none %}
+    {% if change %}
+    <span class="git-badge g-{{ change.code | replace('!', 'conflict') }}" title="{{ change.label }}">{{ change.code }}</span>
+    {% endif %}
     {% if not entry.error %}
     <button type="button" class="ghost add-to-file" hx-post="/requests" hx-vals='{{ {"file": entry.path} | tojson }}' hx-target="#main" title="Add a request to {{ entry.path }}" aria-label="Add a request to {{ entry.path }}">+</button>
     {% endif %}

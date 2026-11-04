@@ -5,6 +5,9 @@
   <span class="file-path" title="{{ file }}">{{ file }}</span>
   <div class="actions">
     <button type="button" class="ghost" hx-post="/requests" hx-target="#main" title="Add another request to this file">+ Request</button>
+    {% if history_on %}
+    <button type="button" class="ghost" hx-get="/history" hx-vals='{{ {"file": file, "name": request.name if request else ""} | tojson }}' hx-target="#main" title="Past responses for this request">History</button>
+    {% endif %}
     <button type="button" class="ghost danger" hx-post="/delete" hx-target="#main" hx-confirm="Delete this request from {{ file }}?">Delete</button>
     <button type="button" id="save" hx-post="/save" hx-target="#status">Save</button>
   </div>

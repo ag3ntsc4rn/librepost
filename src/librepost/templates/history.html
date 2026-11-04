@@ -1,0 +1,18 @@
+<div class="manage">
+  <div class="manage-head">
+    <h2>History{% if file %} <span class="muted small">for {{ request_name or "requests in" }} · {{ file }}</span>{% endif %}</h2>
+    {% if enabled %}
+    <button type="button" class="ghost danger" hx-post="/history/clear" hx-target="#main" hx-confirm="Delete all history for this folder?">Clear history</button>
+    {% endif %}
+  </div>
+  {% if not enabled %}
+  <p>History is off: librepost was started with <code>--no-history</code>.</p>
+  {% else %}
+  {% if cleared %}<p class="ok">History cleared.</p>{% endif %}
+  <p class="muted small">Requests you've sent from here, newest first, with secret values masked. Kept on this computer only{% if location %}, in <code>{{ location }}</code>{% endif %}, outside this folder, so it's never committed.</p>
+  <input type="search" class="history-search" name="q" value="{{ query }}" placeholder="Filter by URL, name, file, status…" aria-label="Filter history"
+    hx-get="/history/list" hx-trigger="input changed delay:250ms, search" hx-target="#history-list"
+    hx-vals='{{ {"file": file, "name": request_name} | tojson }}'>
+  <div id="history-list">{% include "history_list.html" %}</div>
+  {% endif %}
+</div>
