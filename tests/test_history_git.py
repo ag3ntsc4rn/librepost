@@ -135,7 +135,7 @@ def test_ui_history(workspace: Path, state_dir: Path) -> None:
     assert sent.status_code == 200
     # History is stored outside the workspace, with the secret masked.
     (stored,) = (state_dir / "history").glob("*.jsonl")
-    raw = stored.read_text()
+    raw = stored.read_text(encoding="utf-8")
     assert "s3cr3t-value" not in raw and "••••••" in raw
     assert not list(workspace.rglob("*.jsonl"))
 
