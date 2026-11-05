@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Desktop window**: `librepost ui --window` opens the UI in its own window, using the
+  system's web view through pywebview (install `librepost-app[desktop]`). Browser extensions
+  can't see the page, nothing is kept after it closes, and closing it stops librepost. On
+  macOS the Dock shows librepost's name and icon. Without the extra, `--window` explains how
+  to install it.
+
 ## [0.7.0] - 2026-11-04
 
 ### Added

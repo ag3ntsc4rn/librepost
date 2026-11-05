@@ -58,6 +58,25 @@ Scripts folder isn't on your PATH; `py -m librepost ui` works either way.
 
 librepost never updates itself. You upgrade when you choose to.
 
+### Desktop window (optional)
+
+To use librepost in its own window instead of a browser tab, install the `desktop` extra and
+add `--window`:
+
+```bash
+uv tool install --force "librepost-app[desktop]"   # or: pip install "librepost-app[desktop]"
+librepost ui --window
+```
+
+It uses the web view built into your system ([pywebview](https://pywebview.flowrl.com)):
+WebKit on macOS and Edge WebView2 on Windows (included in Windows 10 and 11). On Linux
+pywebview also needs GTK or Qt; the easiest is Qt:
+`uv tool install --force "librepost-app[desktop]" --with "pywebview[qt]"`.
+
+It's the same local UI with the same protections, plus two more: browser extensions can't see
+the page, and nothing (cookies, storage) is kept after the window closes. Closing the window
+stops librepost.
+
 ## Quick start
 
 ```bash
@@ -321,7 +340,6 @@ Python 3.11+ (uv fetches one for you if needed) and a web browser. Git is option
 
 ## Roadmap
 
-- A native window (`pip install librepost-app[desktop]`)
 - Commit from the UI, and comparing two responses from history
 - More secret providers: 1Password CLI, HashiCorp Vault, `pass`
 
